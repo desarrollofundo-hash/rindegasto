@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
 import '../services/categoria_service.dart';
+import '../screens/home_screen.dart';
 
 /// Widget modal personalizado para mostrar y editar datos de factura peruana
 class FacturaModalPeru extends StatefulWidget {
@@ -182,6 +185,175 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     );
 
     widget.onSave(facturaData, _selectedImage?.path);
+  }
+
+  /// Guardar factura mediante API
+  Future<void> _saveFacturaAPI() async {
+    try {
+      setState(() => _isLoading = true);
+
+      // Validar campos requeridos
+      if (_politicaController.text.isEmpty) {
+        throw Exception('El campo Política es obligatorio');
+      }
+
+      // Formatear fecha para SQL Server (solo fecha, sin hora)
+      String fechaSQL = "";
+      if (_fechaEmisionController.text.isNotEmpty) {
+        try {
+          // Intentar parsear la fecha del QR
+          final fecha = DateTime.parse(_fechaEmisionController.text);
+          fechaSQL =
+              "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
+        } catch (e) {
+          // Si falla, usar fecha actual
+          final fecha = DateTime.now();
+          fechaSQL =
+              "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
+        }
+      } else {
+        final fecha = DateTime.now();
+        fechaSQL =
+            "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
+      }
+
+      final body = {
+        "idUser": 1,
+        "dni": "74736808",
+        "politica": _politicaController.text.length > 80
+            ? _politicaController.text.substring(0, 80)
+            : _politicaController.text,
+        "categoria": _categoriaController.text.isEmpty
+            ? "GENERAL"
+            : (_categoriaController.text.length > 80
+                  ? _categoriaController.text.substring(0, 80)
+                  : _categoriaController.text),
+        "ruc": _rucController.text.isEmpty
+            ? ""
+            : (_rucController.text.length > 80
+                  ? _rucController.text.substring(0, 80)
+                  : _rucController.text),
+        "proveedor": "",
+        "tipoCombrobante": _tipoComprobanteController.text.isEmpty
+            ? ""
+            : (_tipoComprobanteController.text.length > 180
+                  ? _tipoComprobanteController.text.substring(0, 180)
+                  : _tipoComprobanteController.text),
+        "serie": _serieController.text.isEmpty
+            ? ""
+            : (_serieController.text.length > 80
+                  ? _serieController.text.substring(0, 80)
+                  : _serieController.text),
+        "numero": _numeroController.text.isEmpty
+            ? ""
+            : (_numeroController.text.length > 80
+                  ? _numeroController.text.substring(0, 80)
+                  : _numeroController.text),
+        "igv": double.tryParse(_igvController.text) ?? 0.0,
+        "fecha": fechaSQL,
+        "total": double.tryParse(_totalController.text) ?? 0.0,
+        "moneda": _monedaController.text.isEmpty
+            ? "PEN"
+            : (_monedaController.text.length > 80
+                  ? _monedaController.text.substring(0, 80)
+                  : _monedaController.text),
+        "rucCliente": _rucClienteController.text.isEmpty
+            ? ""
+            : (_rucClienteController.text.length > 80
+                  ? _rucClienteController.text.substring(0, 80)
+                  : _rucClienteController.text),
+        "desEmp": "",
+        "desSed": "",
+        "idCuenta": "",
+        "consumidor": "",
+        "regimen": "",
+        "destino": "BORRADOR",
+        "glosa": _notaController.text.length > 480
+            ? _notaController.text.substring(0, 480)
+            : _notaController.text,
+        "motivoViaje": "",
+        "lugarOrigen": "",
+        "lugarDestino": "",
+        "tipoMovilidad": "",
+        "obs": _notaController.text.length > 1000
+            ? _notaController.text.substring(0, 1000)
+            : _notaController.text,
+        "estado": "S", // Solo 1 carácter como requiere la BD
+        "fecCre": DateTime.now().toIso8601String(),
+        "useReg": 1, // Campo obligatorio
+        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
+        "fecEdit": DateTime.now().toIso8601String(),
+        "useEdit": 0,
+        "useElim": 0,
+      };
+
+      final response = await http
+          .post(
+            Uri.parse(
+              'http://190.119.200.124:45490/saveupdate/saverendiciongasto',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: json.encode([body]),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Verificar si la respuesta contiene errores
+        if (response.body.contains('Error') ||
+            response.body.contains('error')) {
+          throw Exception('Error del servidor: ${response.body}');
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Factura guardada exitosamente'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          // Cerrar el modal y navegar a la pantalla de gastos
+          Navigator.of(context).pop(); // Cerrar modal
+          Navigator.of(context).pop(); // Cerrar pantalla QR si existe
+
+          // Navegar a HomeScreen con índice 0 (pestaña de Gastos)
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false, // Remover todas las rutas anteriores
+          );
+        }
+      } else {
+        print('❌ Error del servidor: ${response.statusCode}');
+        throw Exception(
+          'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('💥 Error capturado: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al guardar: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Reintentar',
+              textColor: Colors.white,
+              onPressed: () => _saveFacturaAPI(),
+            ),
+          ),
+        );
+      }
+    } finally {
+      print('🔄 Finalizando proceso...');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -552,7 +724,11 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 TextInputType.number,
               ),
             ),
-            const SizedBox(width: 12),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
             Expanded(
               child: _buildTextField(
                 _tipoComprobanteController,
@@ -564,7 +740,19 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
           ],
         ),
         const SizedBox(height: 12),
-
+        Row(
+          children: [
+            Expanded(
+              child: _buildTextField(
+                _fechaEmisionController,
+                'Fecha Emisión',
+                Icons.calendar_today,
+                TextInputType.datetime,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         // Segunda fila: Serie y Número
         Row(
           children: [
@@ -583,30 +771,6 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'Número',
                 Icons.confirmation_number,
                 TextInputType.number,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Tercera fila: Código y Fecha
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                _igvController,
-                'IGV',
-                Icons.code,
-                TextInputType.text,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildTextField(
-                _fechaEmisionController,
-                'Fecha Emisión',
-                Icons.calendar_today,
-                TextInputType.datetime,
               ),
             ),
           ],
@@ -635,6 +799,22 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+
+        // Tercera fila: Código y Fecha
+        Row(
+          children: [
+            Expanded(
+              child: _buildTextField(
+                _igvController,
+                'IGV',
+                Icons.code,
+                TextInputType.text,
+              ),
+            ),
+          ],
+        ),
+
         const SizedBox(height: 12),
 
         // Quinta fila: RUC Cliente
@@ -704,9 +884,18 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: _saveFactura,
-              icon: const Icon(Icons.save),
-              label: const Text('Guardar Factura'),
+              onPressed: _isLoading ? null : _saveFacturaAPI,
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.save),
+              label: Text(_isLoading ? 'Guardando...' : 'Guardar Factura'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color.fromARGB(255, 19, 126, 32),
                 foregroundColor: Colors.white,

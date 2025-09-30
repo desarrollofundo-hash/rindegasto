@@ -238,7 +238,7 @@ class _ReportesListState extends State<ReportesList> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '${reporte.desempr} ',
+                              '${reporte.ruc} ',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,

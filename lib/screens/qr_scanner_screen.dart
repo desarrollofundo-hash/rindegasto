@@ -75,9 +75,7 @@ class QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   void _showFacturaModal(FacturaData facturaData, String politicaSeleccionada) {
-    print(
-      '🔍 DEBUG: _showFacturaModal llamado con política: "$politicaSeleccionada"',
-    );
+   
 
     showModalBottomSheet(
           context: context,

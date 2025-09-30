@@ -1,3 +1,4 @@
+import 'package:flu2/models/user_model.dart';
 import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_modal.dart';
@@ -25,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Variables para API
   final ApiService _apiService = ApiService();
   List<Reporte> _reportes = [];
+  List<UserModel> _usuarios = [];
   bool _isLoading = false;
 
   // Datos para informes y revisión

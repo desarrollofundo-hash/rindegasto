@@ -66,12 +66,49 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   /// Agregar listeners para validación en tiempo real
   void _addValidationListeners() {
     _rucController.addListener(_validateForm);
+    _rucClienteController.addListener(
+      _validateForm,
+    ); // ✅ Añadido listener para RUC cliente
     _tipoComprobanteController.addListener(_validateForm);
     _serieController.addListener(_validateForm);
     _numeroController.addListener(_validateForm);
     _fechaEmisionController.addListener(_validateForm);
     _totalController.addListener(_validateForm);
     _categoriaController.addListener(_validateForm);
+  }
+
+  /// Validar si el RUC del cliente (escaneado) coincide con la empresa seleccionada
+  bool _isRucValid() {
+    final rucClienteEscaneado = _rucClienteController.text.trim();
+    final rucEmpresaSeleccionada = CompanyService().companyRuc;
+
+    // Si no hay RUC del cliente escaneado o no hay empresa seleccionada, consideramos válido
+    if (rucClienteEscaneado.isEmpty || rucEmpresaSeleccionada.isEmpty) {
+      return true;
+    }
+
+    return rucClienteEscaneado == rucEmpresaSeleccionada;
+  }
+
+  /// Obtener mensaje de estado del RUC del cliente
+  String _getRucStatusMessage() {
+    final rucClienteEscaneado = _rucClienteController.text.trim();
+    final rucEmpresaSeleccionada = CompanyService().companyRuc;
+    final empresaSeleccionada = CompanyService().currentUserCompany;
+
+    if (rucClienteEscaneado.isEmpty) {
+      return '';
+    }
+
+    if (rucEmpresaSeleccionada.isEmpty) {
+      return '⚠️ No hay empresa seleccionada';
+    }
+
+    if (rucClienteEscaneado == rucEmpresaSeleccionada) {
+      return '✅ RUC cliente coincide con $empresaSeleccionada';
+    } else {
+      return '❌ RUC cliente no coincide con $empresaSeleccionada';
+    }
   }
 
   /// Validar si todos los campos obligatorios están llenos
@@ -84,7 +121,8 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         _fechaEmisionController.text.trim().isNotEmpty &&
         _totalController.text.trim().isNotEmpty &&
         _categoriaController.text.trim().isNotEmpty &&
-        _selectedImage != null;
+        _selectedImage != null &&
+        _isRucValid(); // ✅ Añadida validación de RUC
 
     if (_isFormValid != isValid) {
       setState(() {
@@ -163,6 +201,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   void _disposeControllers() {
     // Remover listeners antes de dispose
     _rucController.removeListener(_validateForm);
+    _rucClienteController.removeListener(
+      _validateForm,
+    ); // ✅ Añadido removal para RUC cliente
     _tipoComprobanteController.removeListener(_validateForm);
     _serieController.removeListener(_validateForm);
     _numeroController.removeListener(_validateForm);
@@ -223,6 +264,41 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         ),
       );
       return;
+    }
+
+    // 🔍 VALIDACIÓN: RUC del cliente escaneado debe coincidir con empresa seleccionada
+    final rucClienteEscaneado = _rucClienteController.text.trim();
+    final rucEmpresaSeleccionada = CompanyService().companyRuc;
+
+    if (rucClienteEscaneado.isNotEmpty && rucEmpresaSeleccionada.isNotEmpty) {
+      if (rucClienteEscaneado != rucEmpresaSeleccionada) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '❌ RUC del cliente no coincide con la empresa seleccionada',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text('RUC cliente escaneado: $rucClienteEscaneado'),
+                Text('RUC empresa: $rucEmpresaSeleccionada'),
+                Text('Empresa: ${CompanyService().currentUserCompany}'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+        return;
+      }
     }
 
     try {
@@ -751,7 +827,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         ),
         const SizedBox(height: 16),
 
-        // Primera fila: RUC y Tipo Comprobante
+        // Primera fila: RUC y Tipo Comprobante (solo lectura)
         Row(
           children: [
             Expanded(
@@ -761,10 +837,12 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 Icons.business,
                 TextInputType.number,
                 isRequired: true,
+                readOnly: true,
               ),
             ),
           ],
         ),
+
         const SizedBox(height: 12),
         Row(
           children: [
@@ -775,6 +853,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 Icons.description,
                 TextInputType.text,
                 isRequired: true,
+                readOnly: true,
               ),
             ),
           ],
@@ -789,12 +868,13 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 Icons.calendar_today,
                 TextInputType.datetime,
                 isRequired: true,
+                readOnly: true,
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        // Segunda fila: Serie y Número
+        // Segunda fila: Serie y Número (solo lectura)
         Row(
           children: [
             Expanded(
@@ -804,6 +884,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 Icons.tag,
                 TextInputType.text,
                 isRequired: true,
+                readOnly: true,
               ),
             ),
             const SizedBox(width: 12),
@@ -814,13 +895,14 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 Icons.confirmation_number,
                 TextInputType.number,
                 isRequired: true,
+                readOnly: true,
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
 
-        // Cuarta fila: Total y Moneda
+        // Cuarta fila: Total y Moneda (solo lectura)
         Row(
           children: [
             Expanded(
@@ -830,6 +912,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 Icons.attach_money,
                 TextInputType.number,
                 isRequired: true,
+                readOnly: true,
               ),
             ),
             const SizedBox(width: 12),
@@ -839,13 +922,14 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'Moneda',
                 Icons.currency_exchange,
                 TextInputType.text,
+                readOnly: true,
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
 
-        // Tercera fila: Código y Fecha
+        // Tercera fila: IGV (solo lectura)
         Row(
           children: [
             Expanded(
@@ -854,6 +938,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'IGV',
                 Icons.code,
                 TextInputType.text,
+                readOnly: true,
               ),
             ),
           ],
@@ -861,13 +946,40 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
 
         const SizedBox(height: 12),
 
-        // Quinta fila: RUC Cliente
+        // Quinta fila: RUC Cliente (solo lectura)
         _buildTextField(
           _rucClienteController,
           'RUC Cliente',
           Icons.person,
           TextInputType.number,
+          readOnly: true,
         ),
+
+        // 🔍 Mensaje de validación del RUC Cliente
+        if (_rucClienteController.text.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
+            child: Row(
+              children: [
+                Icon(
+                  _isRucValid() ? Icons.check_circle : Icons.error,
+                  size: 16,
+                  color: _isRucValid() ? Colors.green : Colors.red,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _getRucStatusMessage(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _isRucValid() ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -1003,16 +1115,18 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     IconData icon,
     TextInputType keyboardType, {
     bool isRequired = false,
+    bool readOnly = false,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      readOnly: readOnly,
       decoration: InputDecoration(
         labelText: isRequired ? '$label *' : label,
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: readOnly ? Colors.grey.shade100 : Colors.grey.shade50,
       ),
       validator: isRequired
           ? (value) {

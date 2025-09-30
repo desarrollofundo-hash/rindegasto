@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
 import '../services/categoria_service.dart';
+import '../services/company_service.dart';
 import '../screens/home_screen.dart';
 
 /// Widget modal personalizado para gastos de movilidad
@@ -70,6 +71,9 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
   /// Agregar listeners para validación en tiempo real
   void _addValidationListeners() {
     _rucController.addListener(_validateForm);
+    _rucClienteController.addListener(
+      _validateForm,
+    ); // ✅ Añadido listener para RUC cliente
     _tipoComprobanteController.addListener(_validateForm);
     _serieController.addListener(_validateForm);
     _numeroController.addListener(_validateForm);
@@ -79,6 +83,40 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
     _destinoController.addListener(_validateForm);
     _motivoViajeController.addListener(_validateForm);
     _categoriaController.addListener(_validateForm);
+  }
+
+  /// Validar si el RUC del cliente (escaneado) coincide con la empresa seleccionada
+  bool _isRucValid() {
+    final rucClienteEscaneado = _rucClienteController.text.trim();
+    final rucEmpresaSeleccionada = CompanyService().companyRuc;
+
+    // Si no hay RUC del cliente escaneado o no hay empresa seleccionada, consideramos válido
+    if (rucClienteEscaneado.isEmpty || rucEmpresaSeleccionada.isEmpty) {
+      return true;
+    }
+
+    return rucClienteEscaneado == rucEmpresaSeleccionada;
+  }
+
+  /// Obtener mensaje de estado del RUC del cliente
+  String _getRucStatusMessage() {
+    final rucClienteEscaneado = _rucClienteController.text.trim();
+    final rucEmpresaSeleccionada = CompanyService().companyRuc;
+    final empresaSeleccionada = CompanyService().currentUserCompany;
+
+    if (rucClienteEscaneado.isEmpty) {
+      return '';
+    }
+
+    if (rucEmpresaSeleccionada.isEmpty) {
+      return '⚠️ No hay empresa seleccionada';
+    }
+
+    if (rucClienteEscaneado == rucEmpresaSeleccionada) {
+      return '✅ RUC cliente coincide con $empresaSeleccionada';
+    } else {
+      return '❌ RUC cliente no coincide con $empresaSeleccionada';
+    }
   }
 
   /// Validar si todos los campos obligatorios están llenos
@@ -94,7 +132,8 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
         _destinoController.text.trim().isNotEmpty &&
         _motivoViajeController.text.trim().isNotEmpty &&
         _categoriaController.text.trim().isNotEmpty &&
-        _selectedImage != null;
+        _selectedImage != null &&
+        _isRucValid(); // ✅ Añadida validación de RUC
 
     if (_isFormValid != isValid) {
       setState(() {
@@ -168,6 +207,9 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
   void dispose() {
     // Remover listeners antes de dispose
     _rucController.removeListener(_validateForm);
+    _rucClienteController.removeListener(
+      _validateForm,
+    ); // ✅ Añadido removal para RUC cliente
     _tipoComprobanteController.removeListener(_validateForm);
     _serieController.removeListener(_validateForm);
     _numeroController.removeListener(_validateForm);
@@ -238,6 +280,41 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
         ),
       );
       return;
+    }
+
+    // 🔍 VALIDACIÓN: RUC del cliente escaneado debe coincidir con empresa seleccionada
+    final rucClienteEscaneado = _rucClienteController.text.trim();
+    final rucEmpresaSeleccionada = CompanyService().companyRuc;
+
+    if (rucClienteEscaneado.isNotEmpty && rucEmpresaSeleccionada.isNotEmpty) {
+      if (rucClienteEscaneado != rucEmpresaSeleccionada) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '❌ RUC del cliente no coincide con la empresa seleccionada',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text('RUC cliente escaneado: $rucClienteEscaneado'),
+                Text('RUC empresa: $rucEmpresaSeleccionada'),
+                Text('Empresa: ${CompanyService().currentUserCompany}'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+        return;
+      }
     }
 
     try {
@@ -797,19 +874,13 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _rucController,
-                    decoration: const InputDecoration(
-                      labelText: 'RUC Emisor *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.business_center),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'RUC Emisor es obligatorio';
-                      }
-                      return null;
-                    },
+                  child: _buildTextField(
+                    _rucController,
+                    'RUC Emisor',
+                    Icons.business_center,
+                    TextInputType.number,
+                    isRequired: true,
+                    readOnly: true,
                   ),
                 ),
               ],
@@ -818,19 +889,13 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _tipoComprobanteController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tipo Comprobante *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.description),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Tipo Comprobante es obligatorio';
-                      }
-                      return null;
-                    },
+                  child: _buildTextField(
+                    _tipoComprobanteController,
+                    'Tipo Comprobante',
+                    Icons.description,
+                    TextInputType.text,
+                    isRequired: true,
+                    readOnly: true,
                   ),
                 ),
               ],
@@ -839,35 +904,54 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _rucClienteController,
-                    decoration: const InputDecoration(
-                      labelText: 'RUC Cliente',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_outline_rounded),
-                    ),
+                  child: _buildTextField(
+                    _rucClienteController,
+                    'RUC Cliente',
+                    Icons.person_outline_rounded,
+                    TextInputType.number,
+                    readOnly: true,
                   ),
                 ),
               ],
             ),
 
+            // 🔍 Mensaje de validación del RUC Cliente
+            if (_rucClienteController.text.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isRucValid() ? Icons.check_circle : Icons.error,
+                      size: 16,
+                      color: _isRucValid() ? Colors.green : Colors.red,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _getRucStatusMessage(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isRucValid() ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _fechaEmisionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Fecha Emisión *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.calendar_today),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Fecha Emisión es obligatoria';
-                      }
-                      return null;
-                    },
+                  child: _buildTextField(
+                    _fechaEmisionController,
+                    'Fecha Emisión',
+                    Icons.calendar_today,
+                    TextInputType.datetime,
+                    isRequired: true,
+                    readOnly: true,
                   ),
                 ),
               ],
@@ -876,36 +960,24 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _serieController,
-                    decoration: const InputDecoration(
-                      labelText: 'Serie *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.tag),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Serie es obligatoria';
-                      }
-                      return null;
-                    },
+                  child: _buildTextField(
+                    _serieController,
+                    'Serie',
+                    Icons.tag,
+                    TextInputType.text,
+                    isRequired: true,
+                    readOnly: true,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: TextFormField(
-                    controller: _numeroController,
-                    decoration: const InputDecoration(
-                      labelText: 'Número *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.numbers),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Número es obligatorio';
-                      }
-                      return null;
-                    },
+                  child: _buildTextField(
+                    _numeroController,
+                    'Número',
+                    Icons.numbers,
+                    TextInputType.number,
+                    isRequired: true,
+                    readOnly: true,
                   ),
                 ),
               ],
@@ -914,34 +986,24 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _totalController,
-                    decoration: const InputDecoration(
-                      labelText: 'Total *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.attach_money),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Total es obligatorio';
-                      }
-                      if (double.tryParse(value) == null) {
-                        return 'Ingrese un número válido';
-                      }
-                      return null;
-                    },
+                  child: _buildTextField(
+                    _totalController,
+                    'Total',
+                    Icons.attach_money,
+                    TextInputType.number,
+                    isRequired: true,
+                    readOnly: true,
                   ),
                 ),
 
                 const SizedBox(width: 12),
                 Expanded(
-                  child: TextFormField(
-                    controller: _monedaController,
-                    decoration: const InputDecoration(
-                      labelText: 'Moneda',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.monetization_on),
-                    ),
+                  child: _buildTextField(
+                    _monedaController,
+                    'Moneda',
+                    Icons.monetization_on,
+                    TextInputType.text,
+                    readOnly: true,
                   ),
                 ),
               ],
@@ -951,13 +1013,12 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    controller: _igvController,
-                    decoration: const InputDecoration(
-                      labelText: 'IGV (%)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.percent),
-                    ),
+                  child: _buildTextField(
+                    _igvController,
+                    'IGV (%)',
+                    Icons.percent,
+                    TextInputType.text,
+                    readOnly: true,
                   ),
                 ),
               ],
@@ -1195,6 +1256,40 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Construir un campo de texto personalizado
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon,
+    TextInputType keyboardType, {
+    bool isRequired = false,
+    bool readOnly = false,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      readOnly: readOnly,
+      decoration: InputDecoration(
+        labelText: isRequired ? '$label *' : label,
+        prefixIcon: Icon(icon),
+        border: const OutlineInputBorder(),
+        filled: true,
+        fillColor: readOnly ? Colors.grey.shade100 : Colors.grey.shade50,
+      ),
+      validator: isRequired
+          ? (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '$label es obligatorio';
+              }
+              if (label == 'Total' && double.tryParse(value) == null) {
+                return 'Ingrese un número válido';
+              }
+              return null;
+            }
+          : null,
     );
   }
 }

@@ -3,7 +3,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/factura_data.dart';
 import '../controllers/qr_scanner_controller.dart';
 import '../widgets/factura_modal_peru.dart';
-import '../widgets/factura_modal_movilidad.dart';
 import '../widgets/politica_selection_modal.dart';
 import '../widgets/qr_scanner_overlay.dart';
 
@@ -28,7 +27,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   void _showPoliticaSelectionModal(FacturaData facturaData) {
     if (_isModalOpen) return; // Evitar abrir múltiples modales
     _isModalOpen = true;
-    print('DEBUG: Mostrando modal de selección de política');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -36,24 +34,18 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       isDismissible: false, // Evitar que se cierre tocando fuera
       builder: (context) => PoliticaSelectionModal(
         onPoliticaSelected: (String politicaSeleccionada) {
-          print('DEBUG: ===== CALLBACK EJECUTADO =====');
-          print('DEBUG: Política seleccionada: "$politicaSeleccionada"');
-          
           // Cerrar el modal actual primero
           Navigator.of(context).pop();
-          
+
           // Usar un delay más corto y más simple
           Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) { // Verificar que el widget sigue montado
-              print('DEBUG: Abriendo modal después del delay...');
+            if (mounted) {
+              // Verificar que el widget sigue montado
               _showFacturaModal(facturaData, politicaSeleccionada);
-            } else {
-              print('DEBUG: ERROR - Widget no está montado');
-            }
+            } else {}
           });
         },
         onCancel: () {
-          print('DEBUG: Cancelando selección de política');
           _isModalOpen = false;
           Navigator.of(context).pop();
           _controller.restartScanning();
@@ -68,23 +60,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   void _showFacturaModal(FacturaData facturaData, String politicaSeleccionada) {
-    print('DEBUG: ===== MÉTODO _showFacturaModal EJECUTADO =====');
-    print('DEBUG: Mostrando modal de factura para política: "$politicaSeleccionada"');
-    
     try {
-      print('DEBUG: Llamando showModalBottomSheet...');
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (context) {
-          print('DEBUG: ==========================================');
-          print('DEBUG: BUILDER DE MODAL EJECUTÁNDOSE');
-          print('DEBUG: Política seleccionada: "$politicaSeleccionada"');
-          print('DEBUG: ==========================================');
-
           // TEMPORAL: Siempre mostrar modal general para probar
-          print('DEBUG: TEMPORAL - Siempre mostrando modal GENERAL para debugging');
+
           try {
             return FacturaModalPeru(
               facturaData: facturaData,

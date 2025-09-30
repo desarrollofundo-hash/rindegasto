@@ -29,5 +29,6 @@ class UserService {
 
   // Método para obtener el usecod del usuario actual
   String get currentUserCode => _currentUser?.usecod ?? '';
-  String get currentUserDni => _currentUser?.usedoc?? '';
+  String get currentUserDni => _currentUser?.usedoc ?? '';
+  String get currentUserName => _currentUser?.usenam ?? '';
 }

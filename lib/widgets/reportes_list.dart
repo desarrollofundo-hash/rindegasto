@@ -13,12 +13,14 @@ class ReportesList extends StatefulWidget {
   final List<Reporte> reportes;
   final Future<void> Function() onRefresh;
   final bool isLoading;
+  final void Function(Reporte)? onTap;
 
   const ReportesList({
     super.key,
     required this.reportes,
     required this.onRefresh,
     this.isLoading = false,
+    this.onTap,
   });
 
   @override
@@ -148,7 +150,8 @@ class _ReportesListState extends State<ReportesList> {
       floatingActionButton: SpeedDial(
         icon: Icons.add,
         activeIcon: Icons.close,
-        backgroundColor: Colors.indigo,
+        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: const Color.fromARGB(255, 31, 98, 213),
         overlayColor: Colors.black,
         overlayOpacity: 0.5,
         spacing: 12,
@@ -221,85 +224,92 @@ class _ReportesListState extends State<ReportesList> {
                     ? DateFormat('yyyy/MM/dd').format(fechaOriginal)
                     : 'Fecha inválida';
 
-                return Card(
-                  color: Colors.white,
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  margin: const EdgeInsets.symmetric(vertical: 2),
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header con número de reporte y estado
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${reporte.ruc} ',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.black,
-                              ),
-                            ),
-                            Text(
-                              '${reporte.total} PEN',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.indigo,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${reporte.categoria} ',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.black,
-                              ),
-                            ),
-                            Chip(
-                              label: Text(
-                                '${reporte.destino}',
+                return GestureDetector(
+                  onTap: widget.onTap != null
+                      ? () => widget.onTap!(reporte)
+                      : null,
+                  child: Card(
+                    color: Colors.white,
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header con número de reporte y estado
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${reporte.ruc} ',
                                 style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Colors.black,
                                 ),
                               ),
-                              backgroundColor: _getEstadoColor(reporte.destino),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 1,
-                                vertical: 0,
+                              Text(
+                                '${reporte.total} PEN',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Colors.indigo,
+                                ),
                               ),
-                              labelPadding: const EdgeInsets.symmetric(
-                                horizontal: 1,
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${reporte.categoria} ',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black,
+                                ),
                               ),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ],
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              fechaCorta,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.black,
+                              Chip(
+                                label: Text(
+                                  '${reporte.destino}',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                backgroundColor: _getEstadoColor(
+                                  reporte.destino,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 1,
+                                  vertical: 0,
+                                ),
+                                labelPadding: const EdgeInsets.symmetric(
+                                  horizontal: 1,
+                                ),
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 1),
-                      ],
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                fechaCorta,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 1),
+                        ],
+                      ),
                     ),
                   ),
                 );

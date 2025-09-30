@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/user_service.dart';
+import '../services/company_service.dart';
 
 class ProfileModal extends StatefulWidget {
   const ProfileModal({super.key});
@@ -17,7 +19,6 @@ class _ProfileModalState extends State<ProfileModal>
   final _formKey = GlobalKey<FormState>();
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
 
-  bool _isSaving = false;
   double _avatarScale = 1.0;
   bool _isDragging = false;
   double _totalDragOffset = 0.0;
@@ -87,45 +88,6 @@ class _ProfileModalState extends State<ProfileModal>
     if (mounted) {
       Navigator.pop(context);
     }
-  }
-
-  Future<void> _saveProfile() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isSaving = true;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 1500));
-
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-
-        await _showSuccessAnimation();
-        await _closeModal();
-      }
-    }
-  }
-
-  Future<void> _showSuccessAnimation() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              child: const Icon(Icons.check_circle, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            const Text("Perfil actualizado correctamente"),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
   }
 
   void _onAvatarTap() {
@@ -483,8 +445,20 @@ class _ProfileModalState extends State<ProfileModal>
               curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
             ),
           ),
+
           child: Column(
             children: [
+              _buildAnimatedFormSection(
+                title: "EMPRESA",
+                icon: Icons.info_outline,
+                fields: [
+                  _buildAnimatedField(4, "Empresa", "Ej: Tech Solutions SA"),
+                  _buildAnimatedField(5, "RUC", "M12432932985"),
+                ],
+                delay: 200,
+              ),
+              const SizedBox(height: 24),
+
               _buildAnimatedFormSection(
                 title: "Información Personal",
                 icon: Icons.person_outline,
@@ -494,14 +468,14 @@ class _ProfileModalState extends State<ProfileModal>
                     "Nombre completo",
                     "Ej: Ana Rodríguez",
                   ),
-                  _buildAnimatedField(1, "Profesión", "Ej: Diseñadora UX"),
+                  _buildAnimatedField(1, "Dni", "Ej: 12345678"),
                 ],
                 delay: 0,
               ),
 
               const SizedBox(height: 24),
 
-              _buildAnimatedFormSection(
+              /* _buildAnimatedFormSection(
                 title: "Contacto",
                 icon: Icons.contact_page_outlined,
                 fields: [
@@ -521,17 +495,7 @@ class _ProfileModalState extends State<ProfileModal>
                 delay: 100,
               ),
 
-              const SizedBox(height: 24),
-
-              _buildAnimatedFormSection(
-                title: "Información Adicional",
-                icon: Icons.info_outline,
-                fields: [
-                  _buildAnimatedField(4, "Empresa", "Ej: Tech Solutions SA"),
-                  _buildAnimatedField(5, "Ubicación", "Madrid, España"),
-                ],
-                delay: 200,
-              ),
+              const SizedBox(height: 24), */
             ],
           ),
         ),
@@ -584,6 +548,29 @@ class _ProfileModalState extends State<ProfileModal>
     String hint, [
     TextInputType? keyboardType,
   ]) {
+    // Determinar si es el campo de nombre, dni, empresa o RUC y tiene valor del usuario
+    bool isNameField = index == 0;
+    bool isDniField = index == 1;
+    bool isCompanyField = index == 4;
+    bool isRucField = index == 5;
+    String displayValue = '';
+    bool isReadOnly = false;
+
+    if (isNameField && UserService().currentUserName.isNotEmpty) {
+      displayValue = UserService().currentUserName;
+      isReadOnly = true;
+    } else if (isDniField && UserService().currentUserDni.isNotEmpty) {
+      displayValue = UserService().currentUserDni;
+      isReadOnly = true;
+    } else if (isCompanyField &&
+        CompanyService().currentUserCompany.isNotEmpty) {
+      displayValue = CompanyService().currentUserCompany;
+      isReadOnly = true;
+    } else if (isRucField && CompanyService().companyRuc.isNotEmpty) {
+      displayValue = CompanyService().companyRuc;
+      isReadOnly = true;
+    }
+
     return AnimatedContainer(
       duration: Duration(milliseconds: 400 + (index * 100)),
       curve: Curves.easeOutBack,
@@ -605,15 +592,17 @@ class _ProfileModalState extends State<ProfileModal>
               duration: const Duration(milliseconds: 200),
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isReadOnly ? Colors.grey[100] : Colors.white,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _focusNodes[index].hasFocus
-                      ? Colors.blue[400]!
-                      : Colors.grey[200]!,
+                  color: isReadOnly
+                      ? Colors.grey[300]!
+                      : (_focusNodes[index].hasFocus
+                            ? Colors.blue[400]!
+                            : Colors.grey[200]!),
                   width: _focusNodes[index].hasFocus ? 1.5 : 1.0,
                 ),
-                boxShadow: _focusNodes[index].hasFocus
+                boxShadow: _focusNodes[index].hasFocus && !isReadOnly
                     ? [
                         BoxShadow(
                           color: Colors.blue[100]!,
@@ -628,13 +617,23 @@ class _ProfileModalState extends State<ProfileModal>
                 child: TextField(
                   focusNode: _focusNodes[index],
                   keyboardType: keyboardType,
+                  readOnly: isReadOnly,
+                  controller: isReadOnly
+                      ? (TextEditingController()..text = displayValue)
+                      : null,
                   decoration: InputDecoration(
-                    hintText: hint,
+                    hintText: isReadOnly ? null : hint,
                     hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     border: InputBorder.none,
                   ),
-                  style: const TextStyle(fontSize: 14),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isReadOnly ? Colors.grey[700] : Colors.black,
+                    fontWeight: isReadOnly
+                        ? FontWeight.w500
+                        : FontWeight.normal,
+                  ),
                 ),
               ),
             ),
@@ -642,6 +641,22 @@ class _ProfileModalState extends State<ProfileModal>
         ),
       ),
     );
+  }
+
+  Future<void> _logout() async {
+    // Limpiar la sesión del usuario
+    UserService().clearCurrentUser();
+    CompanyService().clearCurrentCompany();
+
+    // Cerrar el modal primero
+    await _closeModal();
+
+    // Navegar al login y limpiar toda la pila de navegación
+    if (mounted) {
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
+    }
   }
 
   Widget _buildAnimatedActionButtons() {
@@ -665,23 +680,42 @@ class _ProfileModalState extends State<ProfileModal>
           ),
           child: Column(
             children: [
+              // Botón de cerrar sesión
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 width: double.infinity,
                 height: 50,
-                child: _isSaving ? _buildLoadingButton() : _buildSaveButton(),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[600],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                    shadowColor: Colors.red.withOpacity(0.3),
+                  ),
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout, size: 20),
+                  label: const Text(
+                    "Cerrar sesión",
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
+              // Botón secundario para solo cerrar el modal
               AnimatedOpacity(
                 duration: const Duration(milliseconds: 300),
-                opacity: _isSaving ? 0.5 : 1.0,
+                opacity: 1.0,
                 child: TextButton(
-                  onPressed: _isSaving ? null : _closeModal,
+                  onPressed: _closeModal,
                   child: Text(
                     "Cancelar",
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontWeight: FontWeight.w500,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -689,50 +723,6 @@ class _ProfileModalState extends State<ProfileModal>
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSaveButton() {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF1A1D1F),
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.2),
-      ),
-      onPressed: _saveProfile,
-      child: const Text(
-        "Guardar cambios",
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-      ),
-    );
-  }
-
-  Widget _buildLoadingButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[400],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation(Colors.white),
-            ),
-          ),
-          SizedBox(width: 12),
-          Text(
-            "Guardando...",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-        ],
       ),
     );
   }

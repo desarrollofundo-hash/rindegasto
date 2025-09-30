@@ -418,11 +418,6 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
         "useElim": 0,
       };
 
-      print('📦 Datos a enviar: ${json.encode([body])}');
-      print(
-        '🌐 URL: http://190.119.200.124:45490/saveupdate/saverendiciongasto',
-      );
-
       final response = await http
           .post(
             Uri.parse(
@@ -436,18 +431,12 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('📊 Status Code: ${response.statusCode}');
-      print('📄 Response Body: ${response.body}');
-      print('📋 Response Headers: ${response.headers}');
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Verificar si la respuesta contiene errores
         if (response.body.contains('Error') ||
             response.body.contains('error')) {
           throw Exception('Error del servidor: ${response.body}');
         }
-
-        print('✅ Guardado exitoso');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

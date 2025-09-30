@@ -4,6 +4,7 @@ import '../widgets/profile_modal.dart';
 import '../widgets/gastos_list.dart';
 import '../widgets/informes_list.dart';
 import '../widgets/reportes_list.dart';
+import '../widgets/edit_reporte_modal.dart';
 import '../widgets/tabbed_screen.dart';
 import '../models/gasto_model.dart';
 import '../services/api_service.dart';
@@ -130,10 +131,24 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _mostrarEditarReporte(Reporte reporte) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) => EditReporteModal(reporte: reporte),
+    );
+  }
+
   // ========== PANTALLAS REFACTORIZADAS ==========
 
   Widget _buildPantallaInicio() {
     return Scaffold(
+      backgroundColor:
+          Colors.grey[100], // Cambia este color por el que prefieras
       appBar: CustomAppBar(
         hintText: "Buscar reportes...",
         onProfilePressed: () => _mostrarEditarPerfil(context),
@@ -144,6 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
         reportes: _reportes,
         onRefresh: _loadReportes,
         isLoading: _isLoading,
+        onTap: _mostrarEditarReporte,
       ),
     );
   }
@@ -274,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: _selectedIndex == 1
           ? FloatingActionButton.extended(
               onPressed: _agregarInforme,
-              backgroundColor: const Color.fromARGB(255, 90, 113, 246),
+              backgroundColor: const Color.fromARGB(255, 255, 255, 255),
               icon: const Icon(Icons.add),
               label: const Text("Agregar"),
             )

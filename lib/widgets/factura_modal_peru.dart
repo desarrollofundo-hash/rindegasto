@@ -1,12 +1,13 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
 import '../services/categoria_service.dart';
+import '../services/api_service.dart';
 import '../screens/home_screen.dart';
+import '../services/user_service.dart';
+import '../services/company_service.dart';
 
 /// Widget modal personalizado para mostrar y editar datos de factura peruana
 class FacturaModalPeru extends StatefulWidget {
@@ -44,6 +45,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
 
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
+  final ApiService _apiService = ApiService();
   bool _isLoading = false;
   bool _isLoadingCategorias = false;
   List<CategoriaModel> _categoriasGeneral = [];
@@ -153,6 +155,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   @override
   void dispose() {
     _disposeControllers();
+    _apiService.dispose();
     super.dispose();
   }
 
@@ -245,9 +248,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
       }
 
-      final body = {
-        "idUser": 1,
-        "dni": "74736808",
+      final facturaData = {
+        "idUser": UserService().currentUserCode,
+        "dni": UserService().currentUserDni,
         "politica": _politicaController.text.length > 80
             ? _politicaController.text.substring(0, 80)
             : _politicaController.text,
@@ -290,7 +293,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             : (_rucClienteController.text.length > 80
                   ? _rucClienteController.text.substring(0, 80)
                   : _rucClienteController.text),
-        "desEmp": "",
+        "desEmp": CompanyService().currentCompany?.empresa ?? '',
         "desSed": "",
         "idCuenta": "",
         "consumidor": "",
@@ -308,56 +311,33 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             : _notaController.text,
         "estado": "S", // Solo 1 carácter como requiere la BD
         "fecCre": DateTime.now().toIso8601String(),
-        "useReg": 1, // Campo obligatorio
+        "useReg": UserService().currentUserCode, // Campo obligatorio
         "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
         "fecEdit": DateTime.now().toIso8601String(),
         "useEdit": 0,
         "useElim": 0,
       };
 
-      final response = await http
-          .post(
-            Uri.parse(
-              'http://190.119.200.124:45490/saveupdate/saverendiciongasto',
-            ),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: json.encode([body]),
-          )
-          .timeout(const Duration(seconds: 30));
+      // Usar el nuevo servicio API
+      final success = await _apiService.saveRendicionGasto(facturaData);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Verificar si la respuesta contiene errores
-        if (response.body.contains('Error') ||
-            response.body.contains('error')) {
-          throw Exception('Error del servidor: ${response.body}');
-        }
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Factura guardada exitosamente'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Factura guardada exitosamente'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+        // Cerrar el modal y navegar a la pantalla de gastos
+        Navigator.of(context).pop(); // Cerrar modal
+        Navigator.of(context).pop(); // Cerrar pantalla QR si existe
 
-          // Cerrar el modal y navegar a la pantalla de gastos
-          Navigator.of(context).pop(); // Cerrar modal
-          Navigator.of(context).pop(); // Cerrar pantalla QR si existe
-
-          // Navegar a HomeScreen con índice 0 (pestaña de Gastos)
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false, // Remover todas las rutas anteriores
-          );
-        }
-      } else {
-        print('❌ Error del servidor: ${response.statusCode}');
-        throw Exception(
-          'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
+        // Navegar a HomeScreen con índice 0 (pestaña de Gastos)
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false, // Remover todas las rutas anteriores
         );
       }
     } catch (e) {

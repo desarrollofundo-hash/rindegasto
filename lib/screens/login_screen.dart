@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../widgets/company_selection_modal.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
+import '../services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _userController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final ApiService _apiService = ApiService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -31,57 +31,32 @@ class _LoginScreenState extends State<LoginScreen> {
       String usuario = _userController.text.trim();
       String contrasena = _passwordController.text.trim();
 
-      final url =
-          'http://190.119.200.124:45490/login/credencial?usuario=$usuario&contrasena=$contrasena&app=12';
+      // Usar el nuevo servicio API
+      final userData = await _apiService.loginCredencial(
+        usuario: usuario,
+        contrasena: contrasena,
+        app: 12,
+      );
 
-      final response = await http
-          .get(
-            Uri.parse(url),
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 30));
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonResponse = json.decode(response.body);
+      // Crear el UserModel con los datos del login
+      final userModel = UserModel.fromJson(userData);
+      // Guardar el usuario en el servicio singleton
+      UserService().setCurrentUser(userModel);
 
-        if (jsonResponse.isNotEmpty) {
-          final userData = jsonResponse[0];
-
-          // Verificar que el usuario esté activo
-          if (userData['estado'] == 'S') {
-                  // Crear el UserModel con los datos del login
-            final userModel = UserModel.fromJson(userData);
-            // Guardar el usuario en el servicio singleton
-            UserService().setCurrentUser(userModel);
-
-            // Opcional: Guardar datos del usuario para uso posterior
-            // Aquí podrías usar SharedPreferences o Provider para almacenar la sesión
-
-            if (mounted) {
-              // Mostrar modal de selección de empresa
-              showDialog(
-                context: context,
-                barrierDismissible: false, // No permitir cerrar tocando fuera
-                builder: (BuildContext context) {
-                  return CompanySelectionModal(
-                    userName: userData['usenam'] ?? 'Usuario',
-                  );
-                },
-              );
-            }
-          } else {
-            throw Exception('Usuario inactivo. Contacta al administrador.');
-          }
-        } else {
-          throw Exception('Usuario o contraseña incorrectos');
-        }
-      } else {
-        throw Exception('Error del servidor: ${response.statusCode}');
+      if (mounted) {
+        // Mostrar modal de selección de empresa
+        showDialog(
+          context: context,
+          barrierDismissible: false, // No permitir cerrar tocando fuera
+          builder: (BuildContext context) {
+            return CompanySelectionModal(
+              userName: userData['usenam'] ?? 'Usuario',
+              userId: int.tryParse(userData['usecod'] ?? '0') ?? 0,
+            );
+          },
+        );
       }
     } catch (e) {
-
       if (mounted) {
         String errorMessage;
         if (e.toString().contains('TimeoutException')) {
@@ -148,6 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _userController.dispose();
     _passwordController.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 

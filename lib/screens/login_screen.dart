@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/company_selection_modal.dart';
+import '../models/user_model.dart';
+import '../services/user_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,12 +31,8 @@ class _LoginScreenState extends State<LoginScreen> {
       String usuario = _userController.text.trim();
       String contrasena = _passwordController.text.trim();
 
-      print('🚀 Iniciando login...');
-      print('👤 Usuario: $usuario');
-
       final url =
           'http://190.119.200.124:45490/login/credencial?usuario=$usuario&contrasena=$contrasena&app=12';
-      print('🌐 URL: $url');
 
       final response = await http
           .get(
@@ -45,10 +43,6 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           )
           .timeout(const Duration(seconds: 30));
-
-      print('📊 Status Code: ${response.statusCode}');
-      print('📄 Response Body: ${response.body}');
-
       if (response.statusCode == 200) {
         final List<dynamic> jsonResponse = json.decode(response.body);
 
@@ -57,8 +51,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
           // Verificar que el usuario esté activo
           if (userData['estado'] == 'S') {
-            print('✅ Login exitoso');
-            print('👋 Bienvenido: ${userData['usenam']}');
+                  // Crear el UserModel con los datos del login
+            final userModel = UserModel.fromJson(userData);
+            // Guardar el usuario en el servicio singleton
+            UserService().setCurrentUser(userModel);
 
             // Opcional: Guardar datos del usuario para uso posterior
             // Aquí podrías usar SharedPreferences o Provider para almacenar la sesión
@@ -85,7 +81,6 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Error del servidor: ${response.statusCode}');
       }
     } catch (e) {
-      print('💥 Error en login: $e');
 
       if (mounted) {
         String errorMessage;
@@ -187,10 +182,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 100,
                         height: 100,
                         decoration: BoxDecoration(
+                          // ignore: deprecated_member_use
                           color: Colors.white.withOpacity(0.9),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
+                              // ignore: deprecated_member_use
                               color: Colors.black.withOpacity(0.1),
                               blurRadius: 12,
                               offset: const Offset(0, 4),

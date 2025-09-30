@@ -1,4 +1,3 @@
-import 'package:flu2/models/user_model.dart';
 import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_modal.dart';
@@ -8,6 +7,7 @@ import '../widgets/reportes_list.dart';
 import '../widgets/tabbed_screen.dart';
 import '../models/gasto_model.dart';
 import '../services/api_service.dart';
+import '../services/user_service.dart';
 import '../models/reporte_model.dart';
 import './informes/agregar_informe_screen.dart';
 import './informes/detalle_informe_screen.dart';
@@ -26,7 +26,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // Variables para API
   final ApiService _apiService = ApiService();
   List<Reporte> _reportes = [];
-  List<UserModel> _usuarios = [];
   bool _isLoading = false;
 
   // Datos para informes y revisión
@@ -58,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final reportes = await _apiService.getReportesRendicionGasto(
         id: '1',
         idrend: '1',
-        user: '1',
+        user: UserService().currentUserCode,
       );
       if (!mounted) return;
 

@@ -49,11 +49,46 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   List<CategoriaModel> _categoriasGeneral = [];
   String? _errorCategorias;
 
+  // Variables para validación de campos obligatorios
+  bool _isFormValid = false;
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
   @override
   void initState() {
     super.initState();
     _initializeControllers();
     _loadCategorias();
+    _addValidationListeners();
+  }
+
+  /// Agregar listeners para validación en tiempo real
+  void _addValidationListeners() {
+    _rucController.addListener(_validateForm);
+    _tipoComprobanteController.addListener(_validateForm);
+    _serieController.addListener(_validateForm);
+    _numeroController.addListener(_validateForm);
+    _fechaEmisionController.addListener(_validateForm);
+    _totalController.addListener(_validateForm);
+    _categoriaController.addListener(_validateForm);
+  }
+
+  /// Validar si todos los campos obligatorios están llenos
+  void _validateForm() {
+    final isValid =
+        _rucController.text.trim().isNotEmpty &&
+        _tipoComprobanteController.text.trim().isNotEmpty &&
+        _serieController.text.trim().isNotEmpty &&
+        _numeroController.text.trim().isNotEmpty &&
+        _fechaEmisionController.text.trim().isNotEmpty &&
+        _totalController.text.trim().isNotEmpty &&
+        _categoriaController.text.trim().isNotEmpty &&
+        _selectedImage != null;
+
+    if (_isFormValid != isValid) {
+      setState(() {
+        _isFormValid = isValid;
+      });
+    }
   }
 
   /// Cargar categorías desde la API
@@ -123,6 +158,16 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
 
   /// Dispose de todos los controladores
   void _disposeControllers() {
+    // Remover listeners antes de dispose
+    _rucController.removeListener(_validateForm);
+    _tipoComprobanteController.removeListener(_validateForm);
+    _serieController.removeListener(_validateForm);
+    _numeroController.removeListener(_validateForm);
+    _fechaEmisionController.removeListener(_validateForm);
+    _totalController.removeListener(_validateForm);
+    _categoriaController.removeListener(_validateForm);
+
+    // Dispose de los controladores
     _politicaController.dispose();
     _categoriaController.dispose();
     _rucController.dispose();
@@ -147,6 +192,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
       );
       if (image != null) {
         setState(() => _selectedImage = File(image.path));
+        _validateForm(); // Validar formulario después de agregar imagen
       }
     } catch (e) {
       if (mounted) {
@@ -162,40 +208,22 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     }
   }
 
-  /// Guardar los datos de la factura
-  void _saveFactura() {
-    final facturaData = FacturaData(
-      ruc: _rucController.text.isEmpty ? null : _rucController.text,
-      tipoComprobante: _tipoComprobanteController.text.isEmpty
-          ? null
-          : _tipoComprobanteController.text,
-      serie: _serieController.text.isEmpty ? null : _serieController.text,
-      numero: _numeroController.text.isEmpty ? null : _numeroController.text,
-      codigo: _igvController.text.isEmpty ? null : _igvController.text,
-      fechaEmision: _fechaEmisionController.text.isEmpty
-          ? null
-          : _fechaEmisionController.text,
-      total: double.tryParse(_totalController.text),
-      moneda: _monedaController.text.isEmpty ? 'PEN' : _monedaController.text,
-      rucCliente: _rucClienteController.text.isEmpty
-          ? null
-          : _rucClienteController.text,
-      rawData: widget.facturaData.rawData,
-      format: widget.facturaData.format,
-    );
-
-    widget.onSave(facturaData, _selectedImage?.path);
-  }
-
   /// Guardar factura mediante API
   Future<void> _saveFacturaAPI() async {
+    // Validar campos obligatorios antes de continuar
+    if (!_isFormValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Por favor complete todos los campos obligatorios'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     try {
       setState(() => _isLoading = true);
-
-      // Validar campos requeridos
-      if (_politicaController.text.isEmpty) {
-        throw Exception('El campo Política es obligatorio');
-      }
 
       // Formatear fecha para SQL Server (solo fecha, sin hora)
       String fechaSQL = "";
@@ -367,32 +395,35 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
           topRight: Radius.circular(20),
         ),
       ),
-      child: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildImageSection(),
-                  const SizedBox(height: 20),
-                  _buildPolicySection(),
-                  const SizedBox(height: 12),
-                  _buildCategorySection(),
-                  const SizedBox(height: 12),
-                  _buildFacturaDataSection(),
-                  const SizedBox(height: 20),
-                  _buildNotesSection(),
-                  const SizedBox(height: 12),
-                  _buildRawDataSection(),
-                ],
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildImageSection(),
+                    const SizedBox(height: 20),
+                    _buildPolicySection(),
+                    const SizedBox(height: 12),
+                    _buildCategorySection(),
+                    const SizedBox(height: 12),
+                    _buildFacturaDataSection(),
+                    const SizedBox(height: 20),
+                    _buildNotesSection(),
+                    const SizedBox(height: 12),
+                    _buildRawDataSection(),
+                  ],
+                ),
               ),
             ),
-          ),
-          _buildActionButtons(),
-        ],
+            _buildActionButtons(),
+          ],
+        ),
       ),
     );
   }
@@ -458,6 +489,10 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   'Adjuntar Factura',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
+                const Text(
+                  ' *',
+                  style: TextStyle(color: Colors.red, fontSize: 16),
+                ),
                 const Spacer(),
                 if (_isLoading)
                   const SizedBox(
@@ -499,17 +534,33 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: _selectedImage == null
+                        ? Colors.red.shade300
+                        : Colors.grey.shade300,
+                    width: _selectedImage == null ? 2 : 1,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.receipt_outlined, color: Colors.grey, size: 40),
-                    SizedBox(height: 8),
+                    Icon(
+                      Icons.receipt_outlined,
+                      color: _selectedImage == null ? Colors.red : Colors.grey,
+                      size: 40,
+                    ),
+                    const SizedBox(height: 8),
                     Text(
-                      'Sin imagen de factura',
-                      style: TextStyle(color: Colors.grey),
+                      'Agregar imagen de la factura (Obligatorio)',
+                      style: TextStyle(
+                        color: _selectedImage == null
+                            ? Colors.red
+                            : Colors.grey,
+                        fontWeight: _selectedImage == null
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
                     ),
                   ],
                 ),
@@ -664,21 +715,28 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
 
     return DropdownButtonFormField<String>(
       decoration: const InputDecoration(
-        labelText: 'Categoría',
+        labelText: 'Categoría *',
         prefixIcon: Icon(Icons.category),
         border: OutlineInputBorder(),
       ),
-      initialValue:
+      value:
           _categoriaController.text.isNotEmpty &&
               items.any((item) => item.value == _categoriaController.text)
           ? _categoriaController.text
           : null,
       items: items,
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Categoría es obligatoria';
+        }
+        return null;
+      },
       onChanged: (value) {
         if (value != null) {
           setState(() {
             _categoriaController.text = value;
           });
+          _validateForm(); // Validar cuando cambie la categoría
         }
       },
     );
@@ -722,6 +780,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'RUC Emisor',
                 Icons.business,
                 TextInputType.number,
+                isRequired: true,
               ),
             ),
           ],
@@ -735,6 +794,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'Tipo Comprobante',
                 Icons.description,
                 TextInputType.text,
+                isRequired: true,
               ),
             ),
           ],
@@ -748,6 +808,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'Fecha Emisión',
                 Icons.calendar_today,
                 TextInputType.datetime,
+                isRequired: true,
               ),
             ),
           ],
@@ -762,6 +823,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'Serie',
                 Icons.tag,
                 TextInputType.text,
+                isRequired: true,
               ),
             ),
             const SizedBox(width: 12),
@@ -771,6 +833,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'Número',
                 Icons.confirmation_number,
                 TextInputType.number,
+                isRequired: true,
               ),
             ),
           ],
@@ -786,6 +849,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 'Total',
                 Icons.attach_money,
                 TextInputType.number,
+                isRequired: true,
               ),
             ),
             const SizedBox(width: 12),
@@ -867,41 +931,85 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         color: Colors.grey.shade50,
         border: Border(top: BorderSide(color: Colors.grey.shade300)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: widget.onCancel,
-              icon: const Icon(Icons.cancel),
-              label: const Text('Cancelar'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 244, 54, 54),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+          // Mensaje de campos obligatorios
+          if (!_isFormValid)
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: _isLoading ? null : _saveFacturaAPI,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              child: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.orange.shade600),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Por favor complete todos los campos obligatorios (*) e incluya una imagen',
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w500,
                       ),
-                    )
-                  : const Icon(Icons.save),
-              label: Text(_isLoading ? 'Guardando...' : 'Guardar Factura'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 19, 126, 32),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ],
               ),
             ),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: widget.onCancel,
+                  icon: const Icon(Icons.cancel),
+                  label: const Text('Cancelar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromARGB(255, 244, 54, 54),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading || !_isFormValid
+                      ? null
+                      : _saveFacturaAPI,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    _isLoading
+                        ? 'Guardando...'
+                        : _isFormValid
+                        ? 'Guardar Factura'
+                        : 'Complete los campos obligatorios',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isFormValid
+                        ? const Color.fromARGB(255, 19, 126, 32)
+                        : Colors.grey,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey[300],
+                    disabledForegroundColor: Colors.grey[600],
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -913,18 +1021,30 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     TextEditingController controller,
     String label,
     IconData icon,
-    TextInputType keyboardType,
-  ) {
-    return TextField(
+    TextInputType keyboardType, {
+    bool isRequired = false,
+  }) {
+    return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       decoration: InputDecoration(
-        labelText: label,
+        labelText: isRequired ? '$label *' : label,
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
         filled: true,
         fillColor: Colors.grey.shade50,
       ),
+      validator: isRequired
+          ? (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '$label es obligatorio';
+              }
+              if (label == 'Total' && double.tryParse(value) == null) {
+                return 'Ingrese un número válido';
+              }
+              return null;
+            }
+          : null,
     );
   }
 }

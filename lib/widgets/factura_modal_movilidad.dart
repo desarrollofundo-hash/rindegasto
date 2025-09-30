@@ -55,11 +55,52 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
   List<CategoriaModel> _categoriasMovilidad = [];
   String? _errorCategorias;
 
+  // Variables para validación de campos obligatorios
+  bool _isFormValid = false;
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
   @override
   void initState() {
     super.initState();
     _initializeControllers();
     _loadCategorias();
+    _addValidationListeners();
+  }
+
+  /// Agregar listeners para validación en tiempo real
+  void _addValidationListeners() {
+    _rucController.addListener(_validateForm);
+    _tipoComprobanteController.addListener(_validateForm);
+    _serieController.addListener(_validateForm);
+    _numeroController.addListener(_validateForm);
+    _fechaEmisionController.addListener(_validateForm);
+    _totalController.addListener(_validateForm);
+    _origenController.addListener(_validateForm);
+    _destinoController.addListener(_validateForm);
+    _motivoViajeController.addListener(_validateForm);
+    _categoriaController.addListener(_validateForm);
+  }
+
+  /// Validar si todos los campos obligatorios están llenos
+  void _validateForm() {
+    final isValid =
+        _rucController.text.trim().isNotEmpty &&
+        _tipoComprobanteController.text.trim().isNotEmpty &&
+        _serieController.text.trim().isNotEmpty &&
+        _numeroController.text.trim().isNotEmpty &&
+        _fechaEmisionController.text.trim().isNotEmpty &&
+        _totalController.text.trim().isNotEmpty &&
+        _origenController.text.trim().isNotEmpty &&
+        _destinoController.text.trim().isNotEmpty &&
+        _motivoViajeController.text.trim().isNotEmpty &&
+        _categoriaController.text.trim().isNotEmpty &&
+        _selectedImage != null;
+
+    if (_isFormValid != isValid) {
+      setState(() {
+        _isFormValid = isValid;
+      });
+    }
   }
 
   /// Cargar categorías desde la API para GASTOS DE MOVILIDAD
@@ -125,6 +166,19 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
 
   @override
   void dispose() {
+    // Remover listeners antes de dispose
+    _rucController.removeListener(_validateForm);
+    _tipoComprobanteController.removeListener(_validateForm);
+    _serieController.removeListener(_validateForm);
+    _numeroController.removeListener(_validateForm);
+    _fechaEmisionController.removeListener(_validateForm);
+    _totalController.removeListener(_validateForm);
+    _origenController.removeListener(_validateForm);
+    _destinoController.removeListener(_validateForm);
+    _motivoViajeController.removeListener(_validateForm);
+    _categoriaController.removeListener(_validateForm);
+
+    // Dispose de los controladores
     _politicaController.dispose();
     _rucController.dispose();
     _tipoComprobanteController.dispose();
@@ -154,6 +208,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
       );
       if (image != null) {
         setState(() => _selectedImage = File(image.path));
+        _validateForm(); // Validar formulario después de agregar imagen
       }
     } catch (e) {
       if (mounted) {
@@ -169,42 +224,24 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
     }
   }
 
-  /// Guardar los datos de la factura
-  void _saveFactura() {
-    final facturaData = FacturaData(
-      ruc: _rucController.text.isEmpty ? null : _rucController.text,
-      tipoComprobante: _tipoComprobanteController.text.isEmpty
-          ? null
-          : _tipoComprobanteController.text,
-      serie: _serieController.text.isEmpty ? null : _serieController.text,
-      numero: _numeroController.text.isEmpty ? null : _numeroController.text,
-      codigo: _igvController.text.isEmpty ? null : _igvController.text,
-      fechaEmision: _fechaEmisionController.text.isEmpty
-          ? null
-          : _fechaEmisionController.text,
-      total: double.tryParse(_totalController.text),
-      moneda: _monedaController.text.isEmpty ? 'PEN' : _monedaController.text,
-      rucCliente: _rucClienteController.text.isEmpty
-          ? null
-          : _rucClienteController.text,
-      rawData: widget.facturaData.rawData,
-      format: widget.facturaData.format,
-    );
-
-    widget.onSave(facturaData, _selectedImage?.path);
-  }
-
   /// Guardar factura mediante API
   Future<void> _saveFacturaAPI() async {
     print('🚀 Iniciando guardado de factura...');
 
+    // Validar campos obligatorios antes de continuar
+    if (!_isFormValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Por favor complete todos los campos obligatorios'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     try {
       setState(() => _isLoading = true);
-
-      // Validar campos requeridos
-      if (_politicaController.text.isEmpty) {
-        throw Exception('El campo Política es obligatorio');
-      }
 
       // Formatear fecha para SQL Server (solo fecha, sin hora)
       String fechaSQL = "";
@@ -394,33 +431,36 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
           topRight: Radius.circular(20),
         ),
       ),
-      child: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildImageSection(),
-                  const SizedBox(height: 20),
-                  _buildPolicySection(),
-                  const SizedBox(height: 12),
-                  _buildCategorySection(),
-                  const SizedBox(height: 12),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildImageSection(),
+                    const SizedBox(height: 20),
+                    _buildPolicySection(),
+                    const SizedBox(height: 12),
+                    _buildCategorySection(),
+                    const SizedBox(height: 12),
 
-                  _buildFacturaDataSection(),
-                  const SizedBox(height: 20),
-                  _buildMovilidadSection(),
-                  const SizedBox(height: 12),
-                  _buildNotesSection(),
-                ],
+                    _buildFacturaDataSection(),
+                    const SizedBox(height: 20),
+                    _buildMovilidadSection(),
+                    const SizedBox(height: 12),
+                    _buildNotesSection(),
+                  ],
+                ),
               ),
             ),
-          ),
-          _buildActionButtons(),
-        ],
+            _buildActionButtons(),
+          ],
+        ),
       ),
     );
   }
@@ -486,6 +526,10 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   'Imagen de la Factura',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
+                const Text(
+                  ' *',
+                  style: TextStyle(color: Colors.red, fontSize: 16),
+                ),
                 const Spacer(),
                 if (_isLoading)
                   const SizedBox(
@@ -527,17 +571,33 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: _selectedImage == null
+                        ? Colors.red.shade300
+                        : Colors.grey.shade300,
+                    width: _selectedImage == null ? 2 : 1,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
-                    SizedBox(height: 8),
+                    Icon(
+                      Icons.add_a_photo,
+                      size: 40,
+                      color: _selectedImage == null ? Colors.red : Colors.grey,
+                    ),
+                    const SizedBox(height: 8),
                     Text(
-                      'Agregar imagen de la factura',
-                      style: TextStyle(color: Colors.grey),
+                      'Agregar imagen de la factura (Obligatorio)',
+                      style: TextStyle(
+                        color: _selectedImage == null
+                            ? Colors.red
+                            : Colors.grey,
+                        fontWeight: _selectedImage == null
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
                     ),
                   ],
                 ),
@@ -663,7 +723,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             else
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(
-                  labelText: 'Seleccionar Categoría',
+                  labelText: 'Seleccionar Categoría *',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
@@ -682,11 +742,18 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                       ),
                     )
                     .toList(),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Categoría es obligatoria';
+                  }
+                  return null;
+                },
                 onChanged: (value) {
                   if (value != null) {
                     setState(() {
                       _categoriaController.text = value;
                     });
+                    _validateForm(); // Validar cuando cambie la categoría
                   }
                 },
               ),
@@ -733,10 +800,16 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   child: TextFormField(
                     controller: _rucController,
                     decoration: const InputDecoration(
-                      labelText: 'RUC Emisor',
+                      labelText: 'RUC Emisor *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.business_center),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'RUC Emisor es obligatorio';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ],
@@ -748,10 +821,16 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   child: TextFormField(
                     controller: _tipoComprobanteController,
                     decoration: const InputDecoration(
-                      labelText: 'Tipo Comprobante',
+                      labelText: 'Tipo Comprobante *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.description),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Tipo Comprobante es obligatorio';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ],
@@ -779,10 +858,16 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   child: TextFormField(
                     controller: _fechaEmisionController,
                     decoration: const InputDecoration(
-                      labelText: 'Fecha Emisión',
+                      labelText: 'Fecha Emisión *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.calendar_today),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Fecha Emisión es obligatoria';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ],
@@ -794,10 +879,16 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   child: TextFormField(
                     controller: _serieController,
                     decoration: const InputDecoration(
-                      labelText: 'Serie',
+                      labelText: 'Serie *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.tag),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Serie es obligatoria';
+                      }
+                      return null;
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -805,10 +896,16 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   child: TextFormField(
                     controller: _numeroController,
                     decoration: const InputDecoration(
-                      labelText: 'Número',
+                      labelText: 'Número *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.numbers),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Número es obligatorio';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ],
@@ -820,10 +917,19 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   child: TextFormField(
                     controller: _totalController,
                     decoration: const InputDecoration(
-                      labelText: 'Total',
+                      labelText: 'Total *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.attach_money),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Total es obligatorio';
+                      }
+                      if (double.tryParse(value) == null) {
+                        return 'Ingrese un número válido';
+                      }
+                      return null;
+                    },
                   ),
                 ),
 
@@ -887,10 +993,16 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   child: TextFormField(
                     controller: _origenController,
                     decoration: const InputDecoration(
-                      labelText: 'Origen',
+                      labelText: 'Origen *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.my_location),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Origen es obligatorio';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ],
@@ -902,10 +1014,16 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   child: TextFormField(
                     controller: _destinoController,
                     decoration: const InputDecoration(
-                      labelText: 'Destino',
+                      labelText: 'Destino *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.location_on),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Destino es obligatorio';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ],
@@ -914,10 +1032,16 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             TextFormField(
               controller: _motivoViajeController,
               decoration: const InputDecoration(
-                labelText: 'Motivo del Viaje',
+                labelText: 'Motivo del Viaje *',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.description),
               ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Motivo del Viaje es obligatorio';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -989,47 +1113,85 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
   Widget _buildActionButtons() {
     return Container(
       padding: const EdgeInsets.all(20),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: widget.onCancel,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                side: BorderSide(color: Colors.grey[400]!),
+          // Mensaje de campos obligatorios
+          if (!_isFormValid)
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
               ),
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _saveFacturaAPI,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Text(
-                      'Guardar Gasto',
+              child: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.orange.shade600),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Por favor complete todos los campos obligatorios (*) e incluya una imagen',
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
+                  ),
+                ],
+              ),
             ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: widget.onCancel,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: BorderSide(color: Colors.grey[400]!),
+                  ),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isLoading || !_isFormValid
+                      ? null
+                      : _saveFacturaAPI,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: _isFormValid ? Colors.blue : Colors.grey,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey[300],
+                    disabledForegroundColor: Colors.grey[600],
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          _isFormValid
+                              ? 'Guardar Gasto'
+                              : 'Complete los campos obligatorios',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

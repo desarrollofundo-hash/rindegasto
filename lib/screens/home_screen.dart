@@ -147,8 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPantallaInicio() {
     return Scaffold(
-      backgroundColor:
-          Colors.grey[100], // Cambia este color por el que prefieras
+      // Cambia este color por el que prefieras
       appBar: CustomAppBar(
         hintText: "Buscar reportes...",
         onProfilePressed: () => _mostrarEditarPerfil(context),

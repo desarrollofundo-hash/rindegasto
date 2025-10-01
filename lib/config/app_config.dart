@@ -8,8 +8,8 @@ class AppConfig {
   static const String _prodBaseUrl = 'http://190.119.200.124:45490';
   static const String _emulatorBaseUrl =
       'http://10.0.2.2:45490'; // Para emulador que redirecciona al host
-  static const String _devBaseUrl =
-      'http://localhost:3000'; // Para desarrollo local
+  // static const String _devBaseUrl =
+  //     'http://localhost:3000'; // Para desarrollo local
 
   /// URL base dependiendo del entorno y dispositivo
   static String get baseUrl {

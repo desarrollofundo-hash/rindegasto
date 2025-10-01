@@ -147,7 +147,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPantallaInicio() {
     return Scaffold(
-      // Cambia este color por el que prefieras
       appBar: CustomAppBar(
         hintText: "Buscar reportes...",
         onProfilePressed: () => _mostrarEditarPerfil(context),
@@ -289,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: _selectedIndex == 1
           ? FloatingActionButton.extended(
               onPressed: _agregarInforme,
-              backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+              backgroundColor: const Color.fromARGB(255, 195, 15, 15),
               icon: const Icon(Icons.add),
               label: const Text("Agregar"),
             )

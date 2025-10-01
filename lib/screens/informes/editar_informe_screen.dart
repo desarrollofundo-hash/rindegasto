@@ -72,7 +72,7 @@ class _EditarInformeScreenState extends State<EditarInformeScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _categoria,
+                initialValue: _categoria,
                 items: const [
                   DropdownMenuItem(
                     value: "Alimentación",
@@ -93,7 +93,7 @@ class _EditarInformeScreenState extends State<EditarInformeScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _estado,
+                initialValue: _estado,
                 items: const [
                   DropdownMenuItem(
                     value: "Pendiente",

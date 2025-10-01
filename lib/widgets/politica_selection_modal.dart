@@ -6,10 +6,10 @@ class PoliticaSelectionModal extends StatefulWidget {
   final VoidCallback onCancel;
 
   const PoliticaSelectionModal({
-    Key? key,
+    super.key,
     required this.onPoliticaSelected,
     required this.onCancel,
-  }) : super(key: key);
+  });
 
   @override
   State<PoliticaSelectionModal> createState() => _PoliticaSelectionModalState();

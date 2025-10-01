@@ -75,8 +75,6 @@ class QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   void _showFacturaModal(FacturaData facturaData, String politicaSeleccionada) {
-   
-
     showModalBottomSheet(
           context: context,
           isScrollControlled: true,
@@ -254,7 +252,7 @@ class QrScannerOverlayShape extends ShapeBorder {
 
   @override
   Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
-    Path _getLeftTopPath(Rect rect) {
+    Path getLeftTopPath(Rect rect) {
       return Path()
         ..moveTo(rect.left, rect.bottom)
         ..lineTo(rect.left, rect.top + borderRadius)
@@ -267,7 +265,7 @@ class QrScannerOverlayShape extends ShapeBorder {
         ..lineTo(rect.right, rect.top);
     }
 
-    return _getLeftTopPath(rect)
+    return getLeftTopPath(rect)
       ..lineTo(rect.right, rect.bottom)
       ..lineTo(rect.left, rect.bottom)
       ..lineTo(rect.left, rect.top);
@@ -312,14 +310,14 @@ class QrScannerOverlayShape extends ShapeBorder {
       ..restore();
 
     final borderOffset = borderWidth / 2;
-    final _borderLength = borderLength > cutOutWidth / 2 + borderOffset
+    final borderLength = borderWidthSize > cutOutWidth / 2 + borderOffset
         ? borderWidthSize
-        : borderLength;
-    final _borderHeight = borderLength > cutOutHeight / 2 + borderOffset
+        : cutOutWidth / 2 + borderOffset;
+    final borderHeight = borderHeightSize > cutOutHeight / 2 + borderOffset
         ? borderHeightSize
-        : borderLength;
+        : cutOutHeight / 2 + borderOffset;
 
-    final _cutOutRect = Rect.fromLTWH(
+    final cutOutRect0 = Rect.fromLTWH(
       cutOutRect.left + borderOffset,
       cutOutRect.top + borderOffset,
       cutOutRect.width - borderWidth,
@@ -328,42 +326,42 @@ class QrScannerOverlayShape extends ShapeBorder {
 
     canvas.drawPath(
       Path()
-        ..moveTo(_cutOutRect.left, _cutOutRect.top + _borderHeight)
+        ..moveTo(cutOutRect0.left, cutOutRect0.top + borderHeight)
         ..quadraticBezierTo(
-          _cutOutRect.left,
-          _cutOutRect.top,
-          _cutOutRect.left + borderRadius,
-          _cutOutRect.top,
+          cutOutRect0.left,
+          cutOutRect0.top,
+          cutOutRect0.left + borderRadius,
+          cutOutRect0.top,
         )
-        ..lineTo(_cutOutRect.left + _borderLength, _cutOutRect.top)
-        ..moveTo(_cutOutRect.right - _borderLength, _cutOutRect.top)
-        ..lineTo(_cutOutRect.right - borderRadius, _cutOutRect.top)
+        ..lineTo(cutOutRect0.left + borderLength, cutOutRect0.top)
+        ..moveTo(cutOutRect0.right - borderLength, cutOutRect0.top)
+        ..lineTo(cutOutRect0.right - borderRadius, cutOutRect0.top)
         ..quadraticBezierTo(
-          _cutOutRect.right,
-          _cutOutRect.top,
-          _cutOutRect.right,
-          _cutOutRect.top + borderRadius,
+          cutOutRect0.right,
+          cutOutRect0.top,
+          cutOutRect0.right,
+          cutOutRect0.top + borderRadius,
         )
-        ..lineTo(_cutOutRect.right, _cutOutRect.top + _borderHeight)
-        ..moveTo(_cutOutRect.right, _cutOutRect.bottom - _borderHeight)
-        ..lineTo(_cutOutRect.right, _cutOutRect.bottom - borderRadius)
+        ..lineTo(cutOutRect0.right, cutOutRect0.top + borderHeight)
+        ..moveTo(cutOutRect0.right, cutOutRect0.bottom - borderHeight)
+        ..lineTo(cutOutRect0.right, cutOutRect0.bottom - borderRadius)
         ..quadraticBezierTo(
-          _cutOutRect.right,
-          _cutOutRect.bottom,
-          _cutOutRect.right - borderRadius,
-          _cutOutRect.bottom,
+          cutOutRect0.right,
+          cutOutRect0.bottom,
+          cutOutRect0.right - borderRadius,
+          cutOutRect0.bottom,
         )
-        ..lineTo(_cutOutRect.right - _borderLength, _cutOutRect.bottom)
-        ..moveTo(_cutOutRect.left + _borderLength, _cutOutRect.bottom)
-        ..lineTo(_cutOutRect.left + borderRadius, _cutOutRect.bottom)
+        ..lineTo(cutOutRect0.right - borderLength, cutOutRect0.bottom)
+        ..moveTo(cutOutRect0.left + borderLength, cutOutRect0.bottom)
+        ..lineTo(cutOutRect0.left + borderRadius, cutOutRect0.bottom)
         ..quadraticBezierTo(
-          _cutOutRect.left,
-          _cutOutRect.bottom,
-          _cutOutRect.left,
-          _cutOutRect.bottom - borderRadius,
+          cutOutRect0.left,
+          cutOutRect0.bottom,
+          cutOutRect0.left,
+          cutOutRect0.bottom - borderRadius,
         )
-        ..lineTo(_cutOutRect.left, _cutOutRect.bottom - _borderHeight)
-        ..moveTo(_cutOutRect.left, _cutOutRect.top + _borderHeight),
+        ..lineTo(cutOutRect0.left, cutOutRect0.bottom - borderHeight)
+        ..moveTo(cutOutRect0.left, cutOutRect0.top + borderHeight),
       boxPaint,
     );
   }

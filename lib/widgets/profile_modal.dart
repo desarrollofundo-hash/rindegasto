@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/user_service.dart';
-import '../services/company_service.dart';
+import '../controllers/profile_modal_controller.dart';
+import 'profile_modal_widgets.dart';
 
 class ProfileModal extends StatefulWidget {
   const ProfileModal({super.key});
@@ -11,719 +11,138 @@ class ProfileModal extends StatefulWidget {
 
 class _ProfileModalState extends State<ProfileModal>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
-  final _formKey = GlobalKey<FormState>();
-  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
-
-  double _avatarScale = 1.0;
-  bool _isDragging = false;
-  double _totalDragOffset = 0.0;
+  late ProfileModalController _controller;
 
   @override
   void initState() {
     super.initState();
-
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.fastEaseInToSlowEaseOut,
-      ),
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.3, 1.0, curve: Curves.easeIn),
-      ),
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.5),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _controller = ProfileModalController();
+    _controller.initializeAnimations(this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.forward();
+      _controller.startAnimation();
     });
-
-    _setupFocusAnimations();
-  }
-
-  void _setupFocusAnimations() {
-    for (var node in _focusNodes) {
-      node.addListener(() {
-        if (node.hasFocus) {
-          setState(() {
-            _avatarScale = 0.95;
-          });
-        } else {
-          setState(() {
-            _avatarScale = 1.0;
-          });
-        }
-      });
-    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    for (var node in _focusNodes) {
-      node.dispose();
-    }
     super.dispose();
   }
 
-  Future<void> _closeModal() async {
-    await _controller.reverse();
-    if (mounted) {
-      Navigator.pop(context);
-    }
-  }
-
   void _onAvatarTap() {
-    setState(() {
-      _avatarScale = 0.8;
-    });
-
-    Future.delayed(const Duration(milliseconds: 150), () {
-      if (mounted) {
-        setState(() {
-          _avatarScale = 1.0;
-        });
-      }
-    });
-
-    _showImageSourceDialog();
-  }
-
-  void _showImageSourceDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => ScaleTransition(
-        scale: CurvedAnimation(
-          parent: ModalRoute.of(context)!.animation!,
-          curve: Curves.easeOutBack,
-        ),
-        child: AlertDialog(
-          title: const Text("Cambiar foto de perfil"),
-          content: const Text("Selecciona una opción"),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cámara"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Galería"),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _handleDragUpdate(DragUpdateDetails details) {
-    // Solo permitir arrastre hacia abajo
-    if (details.primaryDelta! > 0) {
-      setState(() {
-        _isDragging = true;
-        _totalDragOffset += details.primaryDelta!;
-      });
-    }
-  }
-
-  void _handleDragEnd(DragEndDetails details) {
-    if (_isDragging) {
-      // Si el arrastre fue significativo (más de 100px o velocidad alta), cerrar el modal
-      if (_totalDragOffset > 100 || details.primaryVelocity! > 500) {
-        _closeModal();
-      } else {
-        // Si no, animar de vuelta a la posición original
-        _resetDragAnimation();
-      }
-    }
-  }
-
-  void _resetDragAnimation() {
-    setState(() {
-      _isDragging = false;
-      _totalDragOffset = 0.0;
-    });
+    _controller.onAvatarTap();
+    _controller.showImageSourceDialog(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onVerticalDragUpdate: _handleDragUpdate,
-      onVerticalDragEnd: _handleDragEnd,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        color: Colors.black.withOpacity(_isDragging ? 0.3 : 0.0),
-        child: Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            top: _isDragging ? _totalDragOffset * 0.5 : 0.0,
-          ),
-          child: SingleChildScrollView(
-            physics: _isDragging ? const NeverScrollableScrollPhysics() : null,
-            child: Transform.translate(
-              offset: Offset(0, _isDragging ? _totalDragOffset : 0),
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 30),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(24),
-                        topRight: Radius.circular(24),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(
-                            _isDragging ? 0.1 : 0.3,
-                          ),
-                          blurRadius: 20,
-                          offset: Offset(0, _isDragging ? -2 : 0),
-                        ),
-                      ],
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Header con botón de cerrar
-                          _buildHeaderWithCloseButton(),
-
-                          // Título con animación de slide
-                          SlideTransition(
-                            position: _slideAnimation,
-                            child: _buildTitleSection(),
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          // Avatar con animación de escala
-                          _buildAnimatedAvatar(),
-
-                          const SizedBox(height: 32),
-
-                          // Formulario con animaciones escalonadas
-                          _buildAnimatedForm(),
-
-                          const SizedBox(height: 32),
-
-                          // Botones animados
-                          _buildAnimatedActionButtons(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderWithCloseButton() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Espacio para alinear el título centrado
-          const SizedBox(width: 40),
-
-          // Indicador de arrastre
-          Expanded(
-            child: Column(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _isDragging ? Colors.grey[500] : Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                if (_isDragging) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _totalDragOffset > 100
-                        ? "Suelta para cerrar"
-                        : "Desliza para cerrar",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // Botón de cerrar (X)
-          AnimatedOpacity(
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, child) {
+        return GestureDetector(
+          onVerticalDragUpdate: _controller.handleDragUpdate,
+          onVerticalDragEnd: (details) =>
+              _controller.handleDragEnd(details, context),
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            opacity: _isDragging ? 0.0 : 1.0,
-            child: IconButton(
-              onPressed: _closeModal,
-              icon: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.close, size: 20, color: Colors.grey),
+            color: Colors.black.withOpacity(_controller.isDragging ? 0.3 : 0.0),
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                top: _controller.isDragging
+                    ? _controller.totalDragOffset * 0.5
+                    : 0.0,
               ),
-              splashRadius: 20,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTitleSection() {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 200),
-      opacity: _isDragging ? 0.7 : 1.0,
-      child: Column(
-        children: [
-          const Text(
-            "Perfil Profesional",
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1D1F),
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Actualiza tu información personal",
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnimatedAvatar() {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 200),
-      opacity: _isDragging ? 0.5 : 1.0,
-      child: AnimatedScale(
-        scale: _avatarScale,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        child: GestureDetector(
-          onTap: _isDragging ? null : _onAvatarTap,
-          child: MouseRegion(
-            cursor: _isDragging
-                ? SystemMouseCursors.basic
-                : SystemMouseCursors.click,
-            child: Column(
-              children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.blue[400]!, Colors.purple[400]!],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.person,
-                        size: 50,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        width: 32,
-                        height: 32,
+              child: SingleChildScrollView(
+                physics: _controller.isDragging
+                    ? const NeverScrollableScrollPhysics()
+                    : null,
+                child: Transform.translate(
+                  offset: Offset(
+                    0,
+                    _controller.isDragging ? _controller.totalDragOffset : 0,
+                  ),
+                  child: ScaleTransition(
+                    scale: _controller.scaleAnimation,
+                    child: FadeTransition(
+                      opacity: _controller.fadeAnimation,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 30),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          shape: BoxShape.circle,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(24),
+                            topRight: Radius.circular(24),
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(
-                                _avatarScale == 0.8 ? 0.3 : 0.1,
+                                _controller.isDragging ? 0.1 : 0.3,
                               ),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
+                              blurRadius: 20,
+                              offset: Offset(
+                                0,
+                                _controller.isDragging ? -2 : 0,
+                              ),
                             ),
                           ],
                         ),
-                        child: Icon(
-                          Icons.camera_alt,
-                          size: 18,
-                          color: Colors.grey[700],
+                        child: Form(
+                          key: _controller.formKey,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Header con botón de cerrar
+                              ProfileModalWidgets.buildHeaderWithCloseButton(
+                                _controller,
+                                () => _controller.closeModal(context),
+                              ),
+
+                              // Título con animación de slide
+                              SlideTransition(
+                                position: _controller.slideAnimation,
+                                child: ProfileModalWidgets.buildTitleSection(
+                                  _controller,
+                                ),
+                              ),
+
+                              const SizedBox(height: 32),
+
+                              // Avatar con animación de escala
+                              ProfileModalWidgets.buildAnimatedAvatar(
+                                _controller,
+                                _onAvatarTap,
+                              ),
+
+                              const SizedBox(height: 32),
+
+                              // Formulario con animaciones escalonadas
+                              ProfileModalWidgets.buildAnimatedForm(
+                                _controller,
+                              ),
+
+                              const SizedBox(height: 32),
+
+                              // Botones animados
+                              ProfileModalWidgets.buildAnimatedActionButtons(
+                                _controller,
+                                () => _controller.logout(context),
+                                () => _controller.closeModal(context),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _isDragging ? 0.0 : 1.0,
-                  child: Text(
-                    "Toca para cambiar foto",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                      fontWeight: FontWeight.w500,
-                    ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedForm() {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 200),
-      opacity: _isDragging ? 0.3 : 1.0,
-      child: SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-            .animate(
-              CurvedAnimation(
-                parent: _controller,
-                curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
-              ),
-            ),
-        child: FadeTransition(
-          opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-            CurvedAnimation(
-              parent: _controller,
-              curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
-            ),
-          ),
-
-          child: Column(
-            children: [
-              _buildAnimatedFormSection(
-                title: "EMPRESA",
-                icon: Icons.info_outline,
-                fields: [
-                  _buildAnimatedField(4, "Empresa", "Ej: Tech Solutions SA"),
-                  _buildAnimatedField(5, "RUC", "M12432932985"),
-                ],
-                delay: 200,
-              ),
-              const SizedBox(height: 24),
-
-              _buildAnimatedFormSection(
-                title: "Información Personal",
-                icon: Icons.person_outline,
-                fields: [
-                  _buildAnimatedField(
-                    0,
-                    "Nombre completo",
-                    "Ej: Ana Rodríguez",
-                  ),
-                  _buildAnimatedField(1, "Dni", "Ej: 12345678"),
-                ],
-                delay: 0,
-              ),
-
-              const SizedBox(height: 24),
-
-              /* _buildAnimatedFormSection(
-                title: "Contacto",
-                icon: Icons.contact_page_outlined,
-                fields: [
-                  _buildAnimatedField(
-                    2,
-                    "Email",
-                    "ana@ejemplo.com",
-                    TextInputType.emailAddress,
-                  ),
-                  _buildAnimatedField(
-                    3,
-                    "Teléfono",
-                    "+34 600 000 000",
-                    TextInputType.phone,
-                  ),
-                ],
-                delay: 100,
-              ),
-
-              const SizedBox(height: 24), */
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedFormSection({
-    required String title,
-    required IconData icon,
-    required List<Widget> fields,
-    required int delay,
-  }) {
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 300 + delay),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[100]!),
-      ),
-      curve: Curves.easeInOut,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: Colors.grey[600]),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...fields,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnimatedField(
-    int index,
-    String label,
-    String hint, [
-    TextInputType? keyboardType,
-  ]) {
-    // Determinar si es el campo de nombre, dni, empresa o RUC y tiene valor del usuario
-    bool isNameField = index == 0;
-    bool isDniField = index == 1;
-    bool isCompanyField = index == 4;
-    bool isRucField = index == 5;
-    String displayValue = '';
-    bool isReadOnly = false;
-
-    if (isNameField && UserService().currentUserName.isNotEmpty) {
-      displayValue = UserService().currentUserName;
-      isReadOnly = true;
-    } else if (isDniField && UserService().currentUserDni.isNotEmpty) {
-      displayValue = UserService().currentUserDni;
-      isReadOnly = true;
-    } else if (isCompanyField &&
-        CompanyService().currentUserCompany.isNotEmpty) {
-      displayValue = CompanyService().currentUserCompany;
-      isReadOnly = true;
-    } else if (isRucField && CompanyService().companyRuc.isNotEmpty) {
-      displayValue = CompanyService().companyRuc;
-      isReadOnly = true;
-    }
-
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 400 + (index * 100)),
-      curve: Curves.easeOutBack,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 4),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: 44,
-              decoration: BoxDecoration(
-                color: isReadOnly ? Colors.grey[100] : Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isReadOnly
-                      ? Colors.grey[300]!
-                      : (_focusNodes[index].hasFocus
-                            ? Colors.blue[400]!
-                            : Colors.grey[200]!),
-                  width: _focusNodes[index].hasFocus ? 1.5 : 1.0,
-                ),
-                boxShadow: _focusNodes[index].hasFocus && !isReadOnly
-                    ? [
-                        BoxShadow(
-                          color: Colors.blue[100]!,
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : [],
-              ),
-              child: IgnorePointer(
-                ignoring: _isDragging,
-                child: TextField(
-                  focusNode: _focusNodes[index],
-                  keyboardType: keyboardType,
-                  readOnly: isReadOnly,
-                  controller: isReadOnly
-                      ? (TextEditingController()..text = displayValue)
-                      : null,
-                  decoration: InputDecoration(
-                    hintText: isReadOnly ? null : hint,
-                    hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    border: InputBorder.none,
-                  ),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isReadOnly ? Colors.grey[700] : Colors.black,
-                    fontWeight: isReadOnly
-                        ? FontWeight.w500
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _logout() async {
-    // Limpiar la sesión del usuario
-    UserService().clearCurrentUser();
-    CompanyService().clearCurrentCompany();
-
-    // Cerrar el modal primero
-    await _closeModal();
-
-    // Navegar al login y limpiar toda la pila de navegación
-    if (mounted) {
-      Navigator.of(
-        context,
-      ).pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
-    }
-  }
-
-  Widget _buildAnimatedActionButtons() {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 200),
-      opacity: _isDragging ? 0.0 : 1.0,
-      child: SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero)
-            .animate(
-              CurvedAnimation(
-                parent: _controller,
-                curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
-              ),
-            ),
-        child: FadeTransition(
-          opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-            CurvedAnimation(
-              parent: _controller,
-              curve: const Interval(0.8, 1.0, curve: Curves.easeIn),
-            ),
-          ),
-          child: Column(
-            children: [
-              // Botón de cerrar sesión
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[600],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                    shadowColor: Colors.red.withOpacity(0.3),
-                  ),
-                  onPressed: _logout,
-                  icon: const Icon(Icons.logout, size: 20),
-                  label: const Text(
-                    "Cerrar sesión",
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Botón secundario para solo cerrar el modal
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 300),
-                opacity: 1.0,
-                child: TextButton(
-                  onPressed: _closeModal,
-                  child: Text(
-                    "Cancelar",
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

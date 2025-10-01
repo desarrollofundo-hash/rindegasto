@@ -548,8 +548,8 @@ class ApiService {
 
   /// Guardar factura/rendición de gasto
   /// [facturaData] - Map con los datos de la factura a guardar
-  /// Retorna true si se guardó exitosamente, false en caso contrario
-  Future<bool> saveRendicionGasto(Map<String, dynamic> facturaData) async {
+  /// Retorna el idRend generado si se guardó exitosamente, null en caso contrario
+  Future<int?> saveRendicionGasto(Map<String, dynamic> facturaData) async {
     debugPrint('🚀 Guardando factura/rendición de gasto...');
     debugPrint('📍 URL: $baseUrl/saveupdate/saverendiciongasto');
     debugPrint('📦 Datos a enviar: $facturaData');
@@ -570,12 +570,14 @@ class ApiService {
 
       final response = await client
           .post(
-            Uri.parse('$baseUrl/saveupdate/saverendiciongasto'),
+            Uri.parse('$baseUrl/saveupdate/saverendiciongasto?returnId=true'),
             headers: {
-              'Content-Type': 'application/json',
+              'Content-Type': 'application/json; charset=UTF-8',
               'Accept': 'application/json',
               'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
               'Connection': 'keep-alive',
+              'X-Return-Format': 'json',
+              'X-Return-Id': 'true',
             },
             body: json.encode([facturaData]),
           )
@@ -595,7 +597,98 @@ class ApiService {
         }
 
         debugPrint('✅ Factura guardada exitosamente');
-        return true;
+
+        // Verificar si la respuesta es solo el mensaje de texto esperado
+        if (response.body.trim() == "UPSERT realizado correctamente.") {
+          debugPrint('📝 Respuesta de texto plano detectada');
+          debugPrint('🔍 Intentando buscar el registro por datos únicos...');
+
+          // Extraer datos únicos para la búsqueda
+          final ruc = facturaData['ruc']?.toString().trim() ?? '';
+          final serie = facturaData['serie']?.toString().trim() ?? '';
+          final numero = facturaData['numero']?.toString().trim() ?? '';
+          final userCode = facturaData['useReg']?.toString().trim() ?? '';
+
+          if (ruc.isNotEmpty &&
+              serie.isNotEmpty &&
+              numero.isNotEmpty &&
+              userCode.isNotEmpty) {
+            debugPrint(
+              '� Buscando con: RUC=$ruc, Serie=$serie, Número=$numero, Usuario=$userCode',
+            );
+
+            // Buscar el registro por datos únicos
+            final foundId = await findFacturaByUniqueData(
+              ruc: ruc,
+              serie: serie,
+              numero: numero,
+              userCode: userCode,
+            );
+
+            if (foundId != null) {
+              debugPrint('✅ Factura encontrada con ID: $foundId');
+              return foundId;
+            } else {
+              debugPrint('❌ No se pudo encontrar la factura guardada');
+            }
+          } else {
+            debugPrint('❌ Datos insuficientes para búsqueda única');
+            debugPrint(
+              '   RUC: "$ruc", Serie: "$serie", Número: "$numero", Usuario: "$userCode"',
+            );
+          }
+
+          throw Exception(
+            'El servidor guardó los datos pero no devolvió el ID generado.\n\n'
+            'Tampoco se pudo encontrar el registro mediante búsqueda.\n\n'
+            'SOLUCIÓN REQUERIDA:\n'
+            'El backend debe modificarse para devolver:\n'
+            '{"idRend": 12345, "message": "UPSERT realizado correctamente"}\n\n'
+            'O implementar el endpoint:\n'
+            'GET /query/findbydata?ruc=...&serie=...&numero=...&userCode=...\n\n'
+            'Contacta al desarrollador del backend.',
+          );
+        }
+
+        // Intentar extraer el idRend de la respuesta JSON
+        try {
+          final responseData = json.decode(response.body);
+          int? idRend;
+
+          // La respuesta puede ser un objeto con idRend o un array con un objeto que tiene idRend
+          if (responseData is Map<String, dynamic>) {
+            idRend = responseData['idRend'] ?? responseData['id'];
+          } else if (responseData is List && responseData.isNotEmpty) {
+            final firstItem = responseData[0];
+            if (firstItem is Map<String, dynamic>) {
+              idRend = firstItem['idRend'] ?? firstItem['id'];
+            }
+          }
+
+          if (idRend != null) {
+            debugPrint('🆔 idRend obtenido desde JSON: $idRend');
+            return idRend;
+          } else {
+            debugPrint('⚠️ JSON válido pero sin idRend');
+            debugPrint('📄 Estructura de respuesta: $responseData');
+
+            throw Exception(
+              'El servidor devolvió JSON pero sin el campo idRend requerido.\n\n'
+              'Respuesta recibida: $responseData\n\n'
+              'El backend debe incluir el campo "idRend" o "id" en la respuesta.',
+            );
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error al parsear la respuesta JSON: $e');
+          debugPrint('📄 Response body: ${response.body}');
+
+          throw Exception(
+            'El servidor devolvió una respuesta que no se puede procesar.\n\n'
+            'Respuesta del servidor: "${response.body}"\n'
+            'Error de parsing: $e\n\n'
+            'El backend debe devolver JSON válido con el ID generado.',
+          );
+        }
       } else {
         debugPrint('❌ Error del servidor: ${response.statusCode}');
         throw Exception(
@@ -615,6 +708,402 @@ class ApiService {
       throw Exception('El servidor devolvió datos en formato incorrecto');
     } catch (e) {
       debugPrint('💥 Error no manejado al guardar factura: $e');
+      rethrow;
+    }
+  }
+
+  /// Verificar si un registro con idRend específico existe en la base de datos
+  /// [idRend] - ID del registro a verificar
+  /// Retorna true si existe, false si no existe
+  Future<bool> verifyRecordExists(int idRend) async {
+    debugPrint('🔍 Verificando si existe registro con idRend: $idRend');
+    debugPrint('📍 URL: $baseUrl/query/verify/$idRend');
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/query/verify/$idRend'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+              'Cache-Control': 'no-cache',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint(
+        '📊 Respuesta verificación registro - Status: ${response.statusCode}',
+      );
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        try {
+          final responseData = json.decode(response.body);
+
+          // Verificar diferentes formatos de respuesta
+          bool exists = false;
+          if (responseData is Map<String, dynamic>) {
+            exists =
+                responseData['exists'] == true ||
+                responseData['found'] == true ||
+                responseData['count'] != null && responseData['count'] > 0;
+          } else if (responseData is bool) {
+            exists = responseData;
+          } else if (responseData is List && responseData.isNotEmpty) {
+            exists = true; // Si devuelve una lista con datos, existe
+          }
+
+          debugPrint(
+            '✅ Registro ${exists ? 'EXISTE' : 'NO EXISTE'} en la base de datos',
+          );
+          return exists;
+        } catch (e) {
+          debugPrint('⚠️ Error al parsear respuesta de verificación: $e');
+          return false;
+        }
+      } else if (response.statusCode == 404) {
+        debugPrint('❌ Registro no encontrado (404)');
+        return false;
+      } else {
+        debugPrint(
+          '❌ Error del servidor al verificar registro: ${response.statusCode}',
+        );
+        return false;
+      }
+    } catch (e) {
+      debugPrint('💥 Error al verificar registro: $e');
+      return false;
+    }
+  }
+
+  /// Buscar ID de factura por datos únicos (RUC, serie, número)
+  /// [ruc] - RUC del emisor
+  /// [serie] - Serie del comprobante
+  /// [numero] - Número del comprobante
+  /// [userCode] - Código del usuario que insertó
+  /// Retorna el idRend si encuentra la factura, null si no existe
+  Future<int?> findFacturaByUniqueData({
+    required String ruc,
+    required String serie,
+    required String numero,
+    required String userCode,
+  }) async {
+    debugPrint('🔍 Buscando factura por datos únicos:');
+    debugPrint('   - RUC: $ruc');
+    debugPrint('   - Serie: $serie');
+    debugPrint('   - Número: $numero');
+    debugPrint('   - Usuario: $userCode');
+
+    try {
+      // Construir la URL con parámetros de consulta
+      final uri = Uri.parse('$baseUrl/query/findbydata').replace(
+        queryParameters: {
+          'ruc': ruc.trim(),
+          'serie': serie.trim(),
+          'numero': numero.trim(),
+          'userCode': userCode.trim(),
+        },
+      );
+
+      debugPrint('📍 URL consulta: $uri');
+
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+              'Cache-Control': 'no-cache',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('📊 Respuesta búsqueda - Status: ${response.statusCode}');
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        try {
+          final responseData = json.decode(response.body);
+          int? idRend;
+
+          if (responseData is Map<String, dynamic>) {
+            idRend =
+                responseData['idRend'] ??
+                responseData['id'] ??
+                responseData['idRendicion'];
+          } else if (responseData is List && responseData.isNotEmpty) {
+            final firstItem = responseData[0];
+            if (firstItem is Map<String, dynamic>) {
+              idRend =
+                  firstItem['idRend'] ??
+                  firstItem['id'] ??
+                  firstItem['idRendicion'];
+            }
+          } else if (responseData is int) {
+            idRend = responseData;
+          }
+
+          if (idRend != null) {
+            debugPrint('✅ Factura encontrada con idRend: $idRend');
+            return idRend;
+          } else {
+            debugPrint('⚠️ Respuesta válida pero sin idRend');
+            return null;
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error al parsear respuesta de búsqueda: $e');
+          return null;
+        }
+      } else if (response.statusCode == 404) {
+        debugPrint('❌ Factura no encontrada (404)');
+        return null;
+      } else {
+        debugPrint('❌ Error del servidor en búsqueda: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('💥 Error en búsqueda por datos únicos: $e');
+      return null;
+    }
+  }
+
+  /// Obtener el último ID generado para un usuario específico
+  /// [userCode] - Código del usuario que insertó el registro
+  /// Retorna el último idRend generado o null si no se encuentra
+  Future<int?> getLastInsertedId(String userCode) async {
+    debugPrint('🔍 Obteniendo último ID insertado para usuario: $userCode');
+    debugPrint('📍 URL: $baseUrl/query/lastinsertedid/$userCode');
+
+    try {
+      // Diagnóstico de conectividad en modo debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/query/lastinsertedid/$userCode'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+              'Cache-Control': 'no-cache',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('📊 Respuesta último ID - Status: ${response.statusCode}');
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        try {
+          final responseData = json.decode(response.body);
+          int? idRend;
+
+          // La respuesta puede ser un objeto con idRend, id, o lastId
+          if (responseData is Map<String, dynamic>) {
+            idRend =
+                responseData['idRend'] ??
+                responseData['id'] ??
+                responseData['lastId'] ??
+                responseData['lastInsertedId'];
+          } else if (responseData is List && responseData.isNotEmpty) {
+            final firstItem = responseData[0];
+            if (firstItem is Map<String, dynamic>) {
+              idRend =
+                  firstItem['idRend'] ??
+                  firstItem['id'] ??
+                  firstItem['lastId'] ??
+                  firstItem['lastInsertedId'];
+            }
+          } else if (responseData is int) {
+            // Si la respuesta es directamente un número
+            idRend = responseData;
+          }
+
+          if (idRend != null) {
+            debugPrint('🆔 Último ID obtenido: $idRend');
+            return idRend;
+          } else {
+            debugPrint('⚠️ No se pudo obtener el último ID de la respuesta');
+            debugPrint('📄 Estructura de respuesta: $responseData');
+            return null;
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error al parsear la respuesta del último ID: $e');
+          debugPrint('📄 Response body: ${response.body}');
+          return null;
+        }
+      } else {
+        debugPrint(
+          '❌ Error del servidor al obtener último ID: ${response.statusCode}',
+        );
+        return null;
+      }
+    } on SocketException catch (e) {
+      debugPrint('🔌 Error de conexión al obtener último ID: $e');
+      return null;
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP al obtener último ID: $e');
+      return null;
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato al obtener último ID: $e');
+      return null;
+    } catch (e) {
+      debugPrint('💥 Error no manejado al obtener último ID: $e');
+      return null;
+    }
+  }
+
+  /// Guardar factura/rendición de gasto
+  /// [facturaEvidenciaData] - Map con los datos de la factura a guardar
+  /// Retorna true si se guardó exitosamente, false en caso contrario
+  Future<bool> saveRendicionGastoEvidencia(
+    Map<String, dynamic> facturaEvidenciaData,
+  ) async {
+    debugPrint('🚀 Guardando evidencia de factura/rendición de gasto...');
+    debugPrint('📍 URL: $baseUrl/saveupdate/saverendiciongastoevidencia');
+
+    // Logging detallado de los datos (sin mostrar la imagen completa)
+    final dataCopy = Map<String, dynamic>.from(facturaEvidenciaData);
+    if (dataCopy.containsKey('evidencia') && dataCopy['evidencia'] != null) {
+      final evidenciaLength = dataCopy['evidencia'].toString().length;
+      dataCopy['evidencia'] = 'BASE64_IMAGE_${evidenciaLength}_CHARS';
+    }
+    debugPrint('📦 Datos a enviar (estructura): $dataCopy');
+
+    // Validaciones adicionales
+    final idRend = facturaEvidenciaData['idRend'];
+    if (idRend == null) {
+      throw Exception('❌ idRend es requerido para guardar la evidencia');
+    }
+    debugPrint('🆔 idRend para evidencia: $idRend');
+
+    final evidencia = facturaEvidenciaData['evidencia'];
+    if (evidencia != null && evidencia.toString().isNotEmpty) {
+      final evidenciaSize = evidencia.toString().length;
+      debugPrint('📷 Tamaño de evidencia: ${evidenciaSize} caracteres');
+
+      // Verificar si parece ser base64 válido
+      if (evidenciaSize > 0 &&
+          !evidencia.toString().contains(RegExp(r'^[A-Za-z0-9+/]*={0,2}$'))) {
+        debugPrint('⚠️ La evidencia no parece ser base64 válido');
+      }
+
+      // Verificar tamaño razonable (máximo ~50MB en base64)
+      if (evidenciaSize > 70000000) {
+        throw Exception(
+          '❌ La imagen es demasiado grande (${(evidenciaSize / 1000000).toStringAsFixed(1)}MB)',
+        );
+      }
+    } else {
+      debugPrint('📷 Sin evidencia de imagen');
+    }
+
+    try {
+      // Diagnóstico de conectividad en modo debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      debugPrint('🌐 Enviando request al servidor...');
+      final response = await client
+          .post(
+            Uri.parse('$baseUrl/saveupdate/saverendiciongastoevidencia'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Accept': 'application/json',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+            },
+            body: json.encode([facturaEvidenciaData]),
+          )
+          .timeout(
+            const Duration(seconds: 60),
+          ); // Aumentar timeout para imágenes
+
+      debugPrint(
+        '📊 Respuesta guardar evidencia - Status: ${response.statusCode}',
+      );
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Verificar si la respuesta contiene errores
+        if (response.body.contains('Error') ||
+            response.body.contains('error')) {
+          debugPrint('❌ Error en respuesta del servidor: ${response.body}');
+          throw Exception('Error del servidor: ${response.body}');
+        }
+
+        debugPrint('✅ Evidencia de factura guardada exitosamente');
+        return true;
+      } else if (response.statusCode == 400) {
+        // Manejo específico para errores 400 (Bad Request)
+        debugPrint('❌ Error 400 - Bad Request al guardar evidencia');
+        debugPrint('📄 Detalles del error: ${response.body}');
+
+        // Analizar posibles causas del error
+        if (response.body.contains('SQL')) {
+          debugPrint('🗄️ Error SQL detectado - posibles causas:');
+          debugPrint('   - idRend no existe en la tabla principal');
+          debugPrint('   - Constraint de foreign key');
+          debugPrint('   - Datos muy largos para las columnas');
+          debugPrint('   - Formato de fecha inválido');
+        }
+
+        throw Exception(
+          'Error 400 al guardar evidencia:\n${response.body}\n\n'
+          'Posibles causas:\n'
+          '• El idRend ($idRend) no existe en la tabla principal\n'
+          '• La imagen es demasiado grande\n'
+          '• Problema con los datos enviados',
+        );
+      } else {
+        debugPrint(
+          '❌ Error del servidor al guardar evidencia: ${response.statusCode}',
+        );
+        throw Exception(
+          'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
+        );
+      }
+    } on SocketException catch (e) {
+      debugPrint('🔌 Error de conexión al guardar evidencia: $e');
+      throw Exception(
+        'Sin conexión al servidor. Verifica tu conexión a internet.',
+      );
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP al guardar evidencia: $e');
+      throw Exception('Error de protocolo HTTP: $e');
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato al guardar evidencia: $e');
+      throw Exception('El servidor devolvió datos en formato incorrecto');
+    } catch (e) {
+      debugPrint('💥 Error no manejado al guardar evidencia: $e');
+      // Verificar si es un error de timeout
+      if (e.toString().contains('TimeoutException') ||
+          e.toString().contains('timeout')) {
+        throw Exception(
+          'La operación tardó demasiado. La imagen podría ser muy grande.',
+        );
+      }
       rethrow;
     }
   }
@@ -823,6 +1312,83 @@ class ApiService {
       }
       debugPrint('💥 Error no manejado al obtener empresas: $e');
       throw Exception('Error inesperado al obtener empresas: $e');
+    }
+  }
+
+  /// Método específico para guardar gastos de movilidad
+  /// [movilidadData] - Map con los datos del gasto de movilidad a guardar
+  /// Retorna true si se guardó exitosamente, false en caso contrario
+  Future<bool> saveRendicionGastoMovilidad(
+    Map<String, dynamic> movilidadData,
+  ) async {
+    debugPrint('🚀 Guardando gasto de movilidad...');
+    debugPrint('📍 URL: $baseUrl/saveupdate/saverendiciongasto');
+    debugPrint('📦 Datos a enviar: $movilidadData');
+
+    try {
+      // Diagnóstico de conectividad en modo debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      final response = await client
+          .post(
+            Uri.parse('$baseUrl/saveupdate/saverendiciongasto'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: json.encode([movilidadData]),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      debugPrint(
+        '📊 Respuesta guardar movilidad - Status: ${response.statusCode}',
+      );
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Verificar si la respuesta contiene errores
+        if (response.body.contains('Error') ||
+            response.body.contains('error')) {
+          debugPrint('❌ Error en respuesta del servidor: ${response.body}');
+          throw Exception('Error del servidor: ${response.body}');
+        }
+
+        debugPrint('✅ Gasto de movilidad guardado exitosamente');
+        return true;
+      } else {
+        debugPrint('❌ Error del servidor: ${response.statusCode}');
+        throw Exception(
+          'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
+        );
+      }
+    } on SocketException catch (e) {
+      debugPrint('🌐 Error de conexión al guardar movilidad: $e');
+      throw Exception('Error de conexión: $e');
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP al guardar movilidad: $e');
+      throw Exception('Error de protocolo HTTP: $e');
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato al guardar movilidad: $e');
+      throw Exception('El servidor devolvió datos en formato incorrecto');
+    } catch (e) {
+      if (e.toString().contains('Sin conexión') ||
+          e.toString().contains('Error del servidor') ||
+          e.toString().contains('Respuesta vacía') ||
+          e.toString().contains('Error al procesar')) {
+        rethrow;
+      }
+      debugPrint('💥 Error no manejado al guardar movilidad: $e');
+      throw Exception('Error inesperado al guardar movilidad: $e');
     }
   }
 

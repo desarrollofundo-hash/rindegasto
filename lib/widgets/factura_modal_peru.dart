@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,12 +18,12 @@ class FacturaModalPeru extends StatefulWidget {
   final VoidCallback onCancel;
 
   const FacturaModalPeru({
-    Key? key,
+    super.key,
     required this.facturaData,
     required this.politicaSeleccionada,
     required this.onSave,
     required this.onCancel,
-  }) : super(key: key);
+  });
 
   @override
   State<FacturaModalPeru> createState() => _FacturaModalPeruState();
@@ -252,6 +253,98 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     }
   }
 
+  /// Mostrar alerta en medio de la pantalla con mensaje del servidor
+  void _showServerAlert(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.warning_rounded,
+                  color: Colors.white,
+                  size: 50,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Mensaje del Servidor',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 30,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'Entendido',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Extraer mensaje del error del servidor
+  String _extractServerMessage(String errorString) {
+    try {
+      // Buscar si el error contiene JSON con mensaje
+      final regex = RegExp(r'\{.*"message".*?:.*?"([^"]+)".*\}');
+      final match = regex.firstMatch(errorString);
+
+      if (match != null && match.group(1) != null) {
+        return match.group(1)!;
+      }
+
+      // Si no encuentra JSON, usar el mensaje completo pero limitado
+      if (errorString.length > 200) {
+        return errorString.substring(0, 200) + '...';
+      }
+
+      return errorString;
+    } catch (e) {
+      return 'Error al procesar la respuesta del servidor';
+    }
+  }
+
   /// Guardar factura mediante API
   Future<void> _saveFacturaAPI() async {
     // Validar campos obligatorios antes de continuar
@@ -324,6 +417,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
       }
 
+      // 📋 DATOS PRINCIPALES DE LA FACTURA
+      // Este objeto contiene toda la información principal de la factura
+      // que será enviada al API que debe generar el idRend automáticamente
       final facturaData = {
         "idUser": UserService().currentUserCode,
         "dni": UserService().currentUserDni,
@@ -394,10 +490,46 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         "useElim": 0,
       };
 
-      // Usar el nuevo servicio API
-      final success = await _apiService.saveRendicionGasto(facturaData);
+      // 🚨 IMPORTANTE: Si saverendiciongastoevidencia es el que GENERA el idRend,
+      // entonces necesitamos cambiar el orden de los APIs
 
-      if (success && mounted) {
+      // ✅ PRIMER API: Guardar datos principales de la factura (genera idRend automáticamente)
+      // Nota: Verificar cuál endpoint realmente genera el idRend autoincrementable
+      final idRend = await _apiService.saveRendicionGasto(facturaData);
+
+      if (idRend == null) {
+        throw Exception(
+          'No se pudo guardar la factura principal o no se obtuvo el ID autogenerado',
+        );
+      }
+
+      debugPrint('🆔 ID autogenerado obtenido: $idRend');
+      debugPrint('📋 Preparando datos de evidencia con el ID generado...');
+
+      // ✅ SEGUNDO API: Guardar evidencia/imagen usando el idRend del primer API
+      final facturaDataEvidencia = {
+        "idRend": idRend, // ✅ Usar el ID autogenerado del API principal
+        "evidencia": _selectedImage != null
+            ? base64Encode(_selectedImage!.readAsBytesSync())
+            : "",
+        "obs": _notaController.text.length > 1000
+            ? _notaController.text.substring(0, 1000)
+            : _notaController.text,
+        "estado": "S", // Solo 1 carácter como requiere la BD
+        "fecCre": DateTime.now().toIso8601String(),
+        "useReg": UserService().currentUserCode, // Campo obligatorio
+        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
+        "fecEdit": DateTime.now().toIso8601String(),
+        "useEdit": 0,
+        "useElim": 0,
+      };
+
+      // Usar el nuevo servicio API para guardar la evidencia
+      final successEvidencia = await _apiService.saveRendicionGastoEvidencia(
+        facturaDataEvidencia,
+      );
+
+      if (successEvidencia && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Factura guardada exitosamente'),
@@ -419,18 +551,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     } catch (e) {
       print('💥 Error capturado: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error al guardar: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Reintentar',
-              textColor: Colors.white,
-              onPressed: () => _saveFacturaAPI(),
-            ),
-          ),
-        );
+        // Extraer mensaje del servidor para mostrar en alerta
+        final serverMessage = _extractServerMessage(e.toString());
+        _showServerAlert(serverMessage);
       }
     } finally {
       print('🔄 Finalizando proceso...');
@@ -608,7 +731,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Agregar imagen de la factura (Obligatorio)',
+                      'Agregar evidencia (Obligatorio)',
                       style: TextStyle(
                         color: _selectedImage == null
                             ? Colors.red
@@ -775,7 +898,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         prefixIcon: Icon(Icons.category),
         border: OutlineInputBorder(),
       ),
-      value:
+      initialValue:
           _categoriaController.text.isNotEmpty &&
               items.any((item) => item.value == _categoriaController.text)
           ? _categoriaController.text

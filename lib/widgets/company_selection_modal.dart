@@ -9,10 +9,10 @@ class CompanySelectionModal extends StatefulWidget {
   final int userId; // Agregar userId para la API
 
   const CompanySelectionModal({
-    Key? key,
+    super.key,
     required this.userName,
     required this.userId,
-  }) : super(key: key);
+  });
 
   @override
   State<CompanySelectionModal> createState() => _CompanySelectionModalState();

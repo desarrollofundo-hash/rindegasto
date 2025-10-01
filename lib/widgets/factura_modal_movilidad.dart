@@ -1,12 +1,13 @@
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
+import 'package:flu2/services/user_service.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
 import '../services/categoria_service.dart';
 import '../services/company_service.dart';
+import '../services/api_service.dart';
 import '../screens/home_screen.dart';
 
 /// Widget modal personalizado para gastos de movilidad
@@ -17,12 +18,12 @@ class FacturaModalMovilidad extends StatefulWidget {
   final VoidCallback onCancel;
 
   const FacturaModalMovilidad({
-    Key? key,
+    super.key,
     required this.facturaData,
     required this.politicaSeleccionada,
     required this.onSave,
     required this.onCancel,
-  }) : super(key: key);
+  });
 
   @override
   State<FacturaModalMovilidad> createState() => _FacturaModalMovilidadState();
@@ -51,6 +52,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
 
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
+  final ApiService _apiService = ApiService();
   bool _isLoading = false;
   bool _isLoadingCategorias = false;
   List<CategoriaModel> _categoriasMovilidad = [];
@@ -205,6 +207,12 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
 
   @override
   void dispose() {
+    _disposeControllers();
+    _apiService.dispose();
+    super.dispose();
+  }
+
+  void _disposeControllers() {
     // Remover listeners antes de dispose
     _rucController.removeListener(_validateForm);
     _rucClienteController.removeListener(
@@ -237,6 +245,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
     _motivoViajeController.dispose();
     _tipoTransporteController.dispose();
     _categoriaController.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 
@@ -263,6 +272,98 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
       }
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  /// Mostrar alerta en medio de la pantalla con mensaje del servidor
+  void _showServerAlert(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.warning_rounded,
+                  color: Colors.white,
+                  size: 50,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Mensaje del Servidor',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 30,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'Entendido',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Extraer mensaje del error del servidor
+  String _extractServerMessage(String errorString) {
+    try {
+      // Buscar si el error contiene JSON con mensaje
+      final regex = RegExp(r'\{.*"message".*?:.*?"([^"]+)".*\}');
+      final match = regex.firstMatch(errorString);
+
+      if (match != null && match.group(1) != null) {
+        return match.group(1)!;
+      }
+
+      // Si no encuentra JSON, usar el mensaje completo pero limitado
+      if (errorString.length > 200) {
+        return errorString.substring(0, 200) + '...';
+      }
+
+      return errorString;
+    } catch (e) {
+      return 'Error al procesar la respuesta del servidor';
     }
   }
 
@@ -341,8 +442,8 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
       }
 
       final body = {
-        "idUser": 1,
-        "dni": "74736808",
+        "idUser": UserService().currentUserCode,
+        "dni": UserService().currentUserDni,
         "politica": _politicaController.text.length > 80
             ? _politicaController.text.substring(0, 80)
             : _politicaController.text,
@@ -385,7 +486,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             : (_rucClienteController.text.length > 80
                   ? _rucClienteController.text.substring(0, 80)
                   : _rucClienteController.text),
-        "desEmp": "",
+        "desEmp": CompanyService().currentCompany?.empresa ?? '',
         "desSed": "",
         "idCuenta": "",
         "consumidor": "",
@@ -411,72 +512,71 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
             : _notaController.text,
         "estado": "S", // Solo 1 carácter como requiere la BD
         "fecCre": DateTime.now().toIso8601String(),
-        "useReg": 1, // Campo obligatorio
+        "useReg": UserService().currentUserCode, // Campo obligatorio
         "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
         "fecEdit": DateTime.now().toIso8601String(),
         "useEdit": 0,
         "useElim": 0,
       };
 
-      final response = await http
-          .post(
-            Uri.parse(
-              'http://190.119.200.124:45490/saveupdate/saverendiciongasto',
-            ),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: json.encode([body]),
-          )
-          .timeout(const Duration(seconds: 30));
+      // ✅ Proceder con el guardado
+      print('✅ Procediendo a guardar...');
+      final idRend = await _apiService.saveRendicionGasto(body);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Verificar si la respuesta contiene errores
-        if (response.body.contains('Error') ||
-            response.body.contains('error')) {
-          throw Exception('Error del servidor: ${response.body}');
-        }
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Factura guardada exitosamente'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-
-          // Cerrar el modal y navegar a la pantalla de gastos
-          Navigator.of(context).pop(); // Cerrar modal
-          Navigator.of(context).pop(); // Cerrar pantalla QR si existe
-
-          // Navegar a HomeScreen con índice 0 (pestaña de Gastos)
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false, // Remover todas las rutas anteriores
-          );
-        }
-      } else {
-        print('❌ Error del servidor: ${response.statusCode}');
+      if (idRend == null) {
         throw Exception(
-          'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
+          'No se pudo guardar la factura principal o no se obtuvo el ID autogenerado',
+        );
+      }
+
+      debugPrint('🆔 ID autogenerado obtenido: $idRend');
+      debugPrint('📋 Preparando datos de evidencia con el ID generado...');
+      final facturaDataEvidencia = {
+        "idRend": idRend, // ✅ Usar el ID autogenerado del API principal
+        "evidencia": _selectedImage != null
+            ? base64Encode(_selectedImage!.readAsBytesSync())
+            : "",
+        "obs": _notaController.text.length > 1000
+            ? _notaController.text.substring(0, 1000)
+            : _notaController.text,
+        "estado": "S", // Solo 1 carácter como requiere la BD
+        "fecCre": DateTime.now().toIso8601String(),
+        "useReg": UserService().currentUserCode, // Campo obligatorio
+        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
+        "fecEdit": DateTime.now().toIso8601String(),
+        "useEdit": 0,
+        "useElim": 0,
+      };
+
+      final successEvidencia = await _apiService.saveRendicionGastoEvidencia(
+        facturaDataEvidencia,
+      );
+
+      if (successEvidencia && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Factura guardada exitosamente'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Cerrar el modal y navegar a la pantalla de gastos
+        Navigator.of(context).pop(); // Cerrar modal
+        Navigator.of(context).pop(); // Cerrar pantalla QR si existe
+
+        // Navegar a HomeScreen con índice 0 (pestaña de Gastos)
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false, // Remover todas las rutas anteriores
         );
       }
     } catch (e) {
       print('💥 Error capturado: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error al guardar: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Reintentar',
-              textColor: Colors.white,
-              onPressed: () => _saveFacturaAPI(),
-            ),
-          ),
-        );
+        // Extraer mensaje del servidor para mostrar en alerta
+        final serverMessage = _extractServerMessage(e.toString());
+        _showServerAlert(serverMessage);
       }
     } finally {
       print('🔄 Finalizando proceso...');
@@ -793,7 +893,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
-                value:
+                initialValue:
                     _categoriaController.text.isNotEmpty &&
                         _categoriasMovilidad.any(
                           (cat) => cat.categoria == _categoriaController.text,

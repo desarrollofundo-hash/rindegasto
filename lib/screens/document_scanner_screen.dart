@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 class DocumentScannerScreen extends StatefulWidget {
-  const DocumentScannerScreen({Key? key}) : super(key: key);
+  const DocumentScannerScreen({super.key});
 
   @override
   State<DocumentScannerScreen> createState() => _DocumentScannerScreenState();

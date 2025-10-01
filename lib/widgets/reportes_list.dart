@@ -119,6 +119,7 @@ class _ReportesListState extends State<ReportesList> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.white, // COLOR DE FONDO DE REPORTE LIST
       body: DefaultTabController(
         length: 3,
         child: Column(

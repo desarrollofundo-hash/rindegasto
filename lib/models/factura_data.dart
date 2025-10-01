@@ -56,7 +56,7 @@ class FacturaData {
     // Asignar valores según la posición en el formato pipe
     return FacturaData(
       // Posición 0: RUC del emisor
-      ruc: parts.length > 0 ? parts[0].trim() : null,
+      ruc: parts.isNotEmpty ? parts[0].trim() : null,
 
       // Posición 1: Tipo de comprobante (01=Factura, 03=Boleta, etc.)
       tipoComprobante: parts.length > 1

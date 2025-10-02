@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
+import '../models/dropdown_option.dart';
 import '../services/categoria_service.dart';
 import '../services/api_service.dart';
 import '../screens/home_screen.dart';
@@ -33,6 +34,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   // Controladores para cada campo
   late TextEditingController _politicaController;
   late TextEditingController _categoriaController;
+  late TextEditingController _tipoGastoController;
   late TextEditingController _rucController;
   late TextEditingController _tipoComprobanteController;
   late TextEditingController _serieController;
@@ -49,8 +51,11 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
   bool _isLoadingCategorias = false;
+  bool _isLoadingTiposGasto = false;
   List<CategoriaModel> _categoriasGeneral = [];
+  List<DropdownOption> _tiposGasto = [];
   String? _errorCategorias;
+  String? _errorTiposGasto;
 
   // Variables para validación de campos obligatorios
   bool _isFormValid = false;
@@ -61,6 +66,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     super.initState();
     _initializeControllers();
     _loadCategorias();
+    _loadTiposGasto(); // Cargar tipos de gasto al inicializar
     _addValidationListeners();
   }
 
@@ -76,6 +82,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     _fechaEmisionController.addListener(_validateForm);
     _totalController.addListener(_validateForm);
     _categoriaController.addListener(_validateForm);
+    _tipoGastoController.addListener(_validateForm);
   }
 
   /// Validar si el RUC del cliente (escaneado) coincide con la empresa seleccionada
@@ -122,6 +129,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         _fechaEmisionController.text.trim().isNotEmpty &&
         _totalController.text.trim().isNotEmpty &&
         _categoriaController.text.trim().isNotEmpty &&
+        _tipoGastoController.text.trim().isNotEmpty &&
         _selectedImage != null &&
         _isRucValid(); // ✅ Añadida validación de RUC
 
@@ -157,12 +165,34 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     }
   }
 
+  /// Cargar tipos de gasto desde la API
+  Future<void> _loadTiposGasto() async {
+    setState(() {
+      _isLoadingTiposGasto = true;
+      _errorTiposGasto = null;
+    });
+
+    try {
+      final tiposGasto = await _apiService.getTiposGasto();
+      setState(() {
+        _tiposGasto = tiposGasto;
+        _isLoadingTiposGasto = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorTiposGasto = e.toString();
+        _isLoadingTiposGasto = false;
+      });
+    }
+  }
+
   /// Inicializar todos los controladores con los datos parseados del QR
   void _initializeControllers() {
     _politicaController = TextEditingController(
       text: widget.politicaSeleccionada,
     );
     _categoriaController = TextEditingController(text: '');
+    _tipoGastoController = TextEditingController(text: '');
     _rucController = TextEditingController(text: widget.facturaData.ruc ?? '');
     _tipoComprobanteController = TextEditingController(
       text: widget.facturaData.tipoComprobante ?? '',
@@ -211,10 +241,12 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     _fechaEmisionController.removeListener(_validateForm);
     _totalController.removeListener(_validateForm);
     _categoriaController.removeListener(_validateForm);
+    _tipoGastoController.removeListener(_validateForm);
 
     // Dispose de los controladores
     _politicaController.dispose();
     _categoriaController.dispose();
+    _tipoGastoController.dispose();
     _rucController.dispose();
     _tipoComprobanteController.dispose();
     _serieController.dispose();
@@ -431,6 +463,12 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             : (_categoriaController.text.length > 80
                   ? _categoriaController.text.substring(0, 80)
                   : _categoriaController.text),
+
+        "tipoGasto": _tipoGastoController.text.isEmpty
+            ? ""
+            : (_tipoGastoController.text.length > 80
+                  ? _tipoGastoController.text.substring(0, 80)
+                  : _tipoGastoController.text),
         "ruc": _rucController.text.isEmpty
             ? ""
             : (_rucController.text.length > 80
@@ -590,6 +628,8 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                     _buildPolicySection(),
                     const SizedBox(height: 12),
                     _buildCategorySection(),
+                    const SizedBox(height: 12),
+                    _buildTipoGastoSection(),
                     const SizedBox(height: 12),
                     _buildFacturaDataSection(),
                     const SizedBox(height: 20),
@@ -932,6 +972,94 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
               : word,
         )
         .join(' ');
+  }
+
+  /// Construir la sección de tipo de gasto
+  Widget _buildTipoGastoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Tipo de Gasto',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 8),
+
+        // Si está cargando, mostrar indicador
+        if (_isLoadingTiposGasto)
+          const Column(
+            children: [
+              Center(child: CircularProgressIndicator()),
+              SizedBox(height: 8),
+              Text(
+                'Cargando tipos de gasto...',
+                style: TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          )
+        // Si hay error, mostrar mensaje
+        else if (_errorTiposGasto != null)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red.shade600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Error al cargar tipos de gasto: $_errorTiposGasto',
+                    style: TextStyle(color: Colors.red.shade700),
+                  ),
+                ),
+              ],
+            ),
+          )
+        // Dropdown normal
+        else
+          DropdownButtonFormField<String>(
+            decoration: const InputDecoration(
+              labelText: 'Tipo de Gasto *',
+              prefixIcon: Icon(Icons.payment),
+              border: OutlineInputBorder(),
+            ),
+            initialValue:
+                _tipoGastoController.text.isNotEmpty &&
+                    _tiposGasto.any(
+                      (tipo) => tipo.value == _tipoGastoController.text,
+                    )
+                ? _tipoGastoController.text
+                : null,
+            items: _tiposGasto
+                .map(
+                  (tipo) => DropdownMenuItem<String>(
+                    value: tipo.value,
+                    child: Text(tipo.value),
+                  ),
+                )
+                .toList(),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Tipo de gasto es obligatorio';
+              }
+              return null;
+            },
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _tipoGastoController.text = value;
+                });
+                _validateForm(); // Validar cuando cambie el tipo de gasto
+              }
+            },
+          ),
+      ],
+    );
   }
 
   /// Construir la sección de datos de la factura

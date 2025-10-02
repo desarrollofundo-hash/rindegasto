@@ -5,7 +5,9 @@ import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import '../models/reporte_model.dart';
 import '../screens/qr_scanner_screen.dart';
 import '../screens/document_scanner_screen.dart';
+import '../services/factura_ia.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
 
 enum EstadoReporte { todos, borrador, enviado }
 
@@ -66,7 +68,7 @@ class _ReportesListState extends State<ReportesList> {
     }
   }
 
-  // Función para escanear documentos
+  // Función para escanear documentos con IA
   void _escanearDocumento() async {
     try {
       // Navegar a una pantalla de captura de documentos
@@ -76,20 +78,26 @@ class _ReportesListState extends State<ReportesList> {
       );
 
       if (result != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Documento escaneado exitosamente'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-            action: SnackBarAction(
-              label: 'Ver',
-              textColor: Colors.white,
-              onPressed: () {
-                print('Documento escaneado: $result');
-              },
+        // Si result es un File (imagen capturada), procesarlo con IA
+        if (result is File) {
+          _procesarFacturaConIA(result);
+        } else {
+          // Comportamiento original
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Documento escaneado exitosamente'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+              action: SnackBarAction(
+                label: 'Ver',
+                textColor: Colors.white,
+                onPressed: () {
+                  print('Documento escaneado: $result');
+                },
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -101,6 +109,174 @@ class _ReportesListState extends State<ReportesList> {
         );
       }
     }
+  }
+
+  // Función para procesar factura con IA
+  void _procesarFacturaConIA(File imagenFactura) async {
+    // Mostrar indicador de procesamiento
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 16),
+            Text('🤖 Procesando factura con IA...'),
+          ],
+        ),
+        backgroundColor: Colors.blue,
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    try {
+      // Extraer datos con IA
+      final datosExtraidos = await FacturaIA.extraerDatos(imagenFactura);
+
+      if (datosExtraidos.isNotEmpty && !datosExtraidos.containsKey('Error')) {
+        _mostrarDatosExtraidos(datosExtraidos);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudieron extraer datos de la factura'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error procesando con IA: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Función para mostrar los datos extraídos
+  void _mostrarDatosExtraidos(Map<String, String> datos) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.psychology, color: Colors.green),
+              SizedBox(width: 8),
+              Text('🤖 Datos Extraídos por IA'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Campos detectados para el modal peruano:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                ...datos.entries
+                    .map(
+                      (entry) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 80,
+                              child: Text(
+                                '${entry.key}:',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                entry.value,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info, color: Colors.blue, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Estos datos se pueden usar automáticamente en el modal de factura peruana',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.blue[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                // Aquí puedes agregar lógica para usar los datos en el modal
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '✅ ${datos.length} campos extraídos listos para usar',
+                    ),
+                    backgroundColor: Colors.green,
+                    action: SnackBarAction(
+                      label: 'Abrir Modal',
+                      textColor: Colors.white,
+                      onPressed: () {
+                        // TODO: Aquí puedes abrir el modal con los datos pre-llenados
+                        print('Datos para modal: $datos');
+                      },
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.assignment),
+              label: const Text('Usar en Modal'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -161,7 +337,7 @@ class _ReportesListState extends State<ReportesList> {
           SpeedDialChild(
             child: const Icon(Icons.document_scanner, color: Colors.white),
             backgroundColor: Colors.green,
-            label: 'Escanear',
+            label: 'Escanear + IA',
             onTap: _escanearDocumento,
           ),
 

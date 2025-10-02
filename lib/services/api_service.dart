@@ -546,6 +546,107 @@ class ApiService {
     }
   }
 
+  /// Obtener tipos de gasto
+  Future<List<DropdownOption>> getTiposGasto() async {
+    debugPrint('🚀 Obteniendo tipos de gasto...');
+    debugPrint('📍 URL: $baseUrl/maestros/rendicion_tipogasto');
+
+    try {
+      // Diagnóstico de conectividad en modo debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      final response = await client
+          .get(
+            Uri.parse('$baseUrl/maestros/rendicion_tipogasto'),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json; charset=UTF-8',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+              'Cache-Control': 'no-cache',
+            },
+          )
+          .timeout(timeout);
+
+      debugPrint(
+        '📊 Respuesta tipos de gasto - Status: ${response.statusCode}',
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('✅ Status 200 - Procesando tipos de gasto...');
+
+        if (response.body.isEmpty) {
+          throw Exception('⚠️ Respuesta vacía del servidor');
+        }
+
+        try {
+          final jsonData = json.decode(response.body);
+          debugPrint('📄 JSON tipos de gasto decodificado: $jsonData');
+
+          if (jsonData is! List) {
+            throw Exception(
+              '❌ Formato de respuesta inesperado para tipos de gasto',
+            );
+          }
+
+          // Convertir cada item a DropdownOption
+          final List<DropdownOption> tiposGasto = [];
+          for (final item in jsonData) {
+            if (item is Map<String, dynamic>) {
+              // Verificar que el estado sea activo
+              final estado = item['estado']?.toString() ?? '';
+              if (estado.toLowerCase() == 's') {
+                final tipogasto = item['tipogasto']?.toString() ?? '';
+                final id = item['id']?.toString() ?? '';
+
+                if (tipogasto.isNotEmpty) {
+                  tiposGasto.add(DropdownOption(id: id, value: tipogasto));
+                }
+              }
+            }
+          }
+
+          debugPrint(
+            '✅ ${tiposGasto.length} tipos de gasto activos encontrados',
+          );
+          return tiposGasto;
+        } catch (e) {
+          debugPrint('❌ Error al parsear JSON de tipos de gasto: $e');
+          throw Exception('Error al procesar respuesta del servidor: $e');
+        }
+      } else {
+        debugPrint('❌ Status ${response.statusCode}');
+        throw Exception(
+          'Error del servidor (${response.statusCode}): ${response.reasonPhrase}',
+        );
+      }
+    } on SocketException catch (e) {
+      debugPrint('🔌 Error de conexión en tipos de gasto: $e');
+      throw Exception(
+        'Sin conexión al servidor. Verifica tu conexión a internet.',
+      );
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP en tipos de gasto: $e');
+      throw Exception('Error de protocolo HTTP: $e');
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato en tipos de gasto: $e');
+      throw Exception('El servidor devolvió datos en formato incorrecto');
+    } catch (e) {
+      debugPrint('💥 Error no manejado en tipos de gasto: $e');
+      throw Exception('Error inesperado: $e');
+    }
+  }
+
   /// Guardar factura/rendición de gasto
   /// [facturaData] - Map con los datos de la factura a guardar
   /// Retorna el idRend generado si se guardó exitosamente, null en caso contrario

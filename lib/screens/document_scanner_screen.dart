@@ -137,6 +137,27 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                       ),
               ),
             ),
+
+            // Botón para procesar con IA (solo aparece si hay imagen)
+            if (_image != null && !_isLoading) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Devolver el archivo de imagen para procesamiento con IA
+                    Navigator.pop(context, _image);
+                  },
+                  icon: const Icon(Icons.psychology),
+                  label: const Text('🤖 Procesar con IA'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromARGB(255, 45, 47, 45),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

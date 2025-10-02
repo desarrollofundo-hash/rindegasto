@@ -245,8 +245,6 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
     _motivoViajeController.dispose();
     _tipoTransporteController.dispose();
     _categoriaController.dispose();
-    _apiService.dispose();
-    super.dispose();
   }
 
   /// Seleccionar imagen desde la cámara

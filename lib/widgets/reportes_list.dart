@@ -3,9 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import '../models/reporte_model.dart';
+import '../models/dropdown_option.dart';
 import '../screens/qr_scanner_screen.dart';
 import '../screens/document_scanner_screen.dart';
 import '../services/factura_ia.dart';
+import 'politica_api_selection_modal.dart';
+import 'politica_test_modal.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 
@@ -66,6 +69,93 @@ class _ReportesListState extends State<ReportesList> {
         );
       }
     }
+  }
+
+  // Función para crear gasto con selección de política
+  void _crearGasto() async {
+    try {
+      // Mostrar el modal de prueba primero para verificar funcionamiento
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => PoliticaTestModal(
+          onPoliticaSelected: (politica) {
+            Navigator.pop(context);
+            _continuarConPolitica(politica);
+          },
+          onCancel: () {
+            Navigator.pop(context);
+          },
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al abrir selección de política: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  // Método para continuar después de seleccionar la política
+  void _continuarConPolitica(DropdownOption politica) {
+    print('🎯 Política seleccionada: ${politica.value} (ID: ${politica.id})');
+
+    // Mostrar confirmación con la política seleccionada
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Política seleccionada: ${politica.value}')),
+            ],
+          ),
+          backgroundColor: Colors.indigo,
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'Continuar',
+            textColor: Colors.white,
+            onPressed: () {
+              _navegarSegunPolitica(politica);
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  // Método para navegar según la política seleccionada
+  void _navegarSegunPolitica(DropdownOption politica) {
+    // TODO: Implementar navegación específica según la política
+    // Aquí puedes agregar la lógica de navegación que necesites
+
+    print('📍 Navegando con política: ${politica.value}');
+
+    // Ejemplo de cómo podrías manejar diferentes políticas:
+    switch (politica.value.toUpperCase()) {
+      case 'GENERAL':
+        // Navegar a pantalla de gasto general
+        print('→ Redirigiendo a pantalla de gasto general');
+        break;
+      case 'GASTOS DE MOVILIDAD':
+        // Navegar a pantalla de gasto de movilidad
+        print('→ Redirigiendo a pantalla de gasto de movilidad');
+        break;
+      default:
+        // Pantalla por defecto
+        print('→ Redirigiendo a pantalla de gasto por defecto');
+        break;
+    }
+
+    // Aquí podrías navegar a diferentes pantallas:
+    // Navigator.push(context, MaterialPageRoute(builder: (_) => PantallaEspecifica(politica: politica)));
   }
 
   // Función para escanear documentos con IA
@@ -351,7 +441,7 @@ class _ReportesListState extends State<ReportesList> {
             child: const Icon(Icons.note_add, color: Colors.white),
             backgroundColor: Colors.indigo,
             label: 'Crear gasto',
-            onTap: () => print('Crear gasto seleccionado'),
+            onTap: _crearGasto,
           ),
         ],
       ),

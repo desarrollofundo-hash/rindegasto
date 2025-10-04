@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
 import '../models/dropdown_option.dart';
@@ -47,6 +48,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   late TextEditingController _notaController;
 
   File? _selectedImage;
+  File? _selectedFile;
+  String? _selectedFileType; // 'image' o 'pdf'
+  String? _selectedFileName;
   final ImagePicker _picker = ImagePicker();
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
@@ -130,7 +134,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         _totalController.text.trim().isNotEmpty &&
         _categoriaController.text.trim().isNotEmpty &&
         _tipoGastoController.text.trim().isNotEmpty &&
-        _selectedImage != null &&
+        (_selectedImage != null ||
+            _selectedFile !=
+                null) && // ✅ Actualizado para aceptar archivos o imágenes
         _isRucValid(); // ✅ Añadida validación de RUC
 
     if (_isFormValid != isValid) {
@@ -259,23 +265,99 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     _notaController.dispose();
   }
 
-  /// Seleccionar imagen desde la cámara
+  /// Seleccionar archivo (imagen o PDF)
   Future<void> _pickImage() async {
     try {
       setState(() => _isLoading = true);
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
+
+      // Mostrar opciones para seleccionar tipo de archivo
+      final selectedOption = await showDialog<String>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Seleccionar evidencia'),
+            content: const Text('¿Qué tipo de archivo desea agregar?'),
+            actions: [
+              TextButton.icon(
+                onPressed: () => Navigator.pop(context, 'camera'),
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('Tomar Foto'),
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.pop(context, 'gallery'),
+                icon: const Icon(Icons.photo_library),
+                label: const Text('Galería'),
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.pop(context, 'pdf'),
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('Archivo PDF'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          );
+        },
       );
-      if (image != null) {
-        setState(() => _selectedImage = File(image.path));
-        _validateForm(); // Validar formulario después de agregar imagen
+
+      if (selectedOption != null) {
+        if (selectedOption == 'camera') {
+          // Tomar foto con la cámara
+          final XFile? image = await _picker.pickImage(
+            source: ImageSource.camera,
+            imageQuality: 85,
+          );
+          if (image != null) {
+            setState(() {
+              _selectedImage = File(image.path);
+              _selectedFile = File(image.path);
+              _selectedFileType = 'image';
+              _selectedFileName = image.name;
+            });
+            _validateForm();
+          }
+        } else if (selectedOption == 'gallery') {
+          // Seleccionar imagen de la galería
+          final XFile? image = await _picker.pickImage(
+            source: ImageSource.gallery,
+            imageQuality: 85,
+          );
+          if (image != null) {
+            setState(() {
+              _selectedImage = File(image.path);
+              _selectedFile = File(image.path);
+              _selectedFileType = 'image';
+              _selectedFileName = image.name;
+            });
+            _validateForm();
+          }
+        } else if (selectedOption == 'pdf') {
+          // Seleccionar archivo PDF
+          final result = await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: ['pdf'],
+            allowMultiple: false,
+          );
+
+          if (result != null && result.files.isNotEmpty) {
+            final file = File(result.files.first.path!);
+            setState(() {
+              _selectedImage = null; // Limpiar imagen si había una
+              _selectedFile = file;
+              _selectedFileType = 'pdf';
+              _selectedFileName = result.files.first.name;
+            });
+            _validateForm();
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al capturar imagen: $e'),
+            content: Text('Error al seleccionar archivo: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -465,7 +547,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   : _categoriaController.text),
 
         "tipoGasto": _tipoGastoController.text.isEmpty
-            ? ""
+            ? "GASTO GENERAL"
             : (_tipoGastoController.text.length > 80
                   ? _tipoGastoController.text.substring(0, 80)
                   : _tipoGastoController.text),
@@ -544,12 +626,14 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
       debugPrint('🆔 ID autogenerado obtenido: $idRend');
       debugPrint('📋 Preparando datos de evidencia con el ID generado...');
 
-      // ✅ SEGUNDO API: Guardar evidencia/imagen usando el idRend del primer API
+      // ✅ SEGUNDO API: Guardar evidencia/archivo usando el idRend del primer API
       final facturaDataEvidencia = {
         "idRend": idRend, // ✅ Usar el ID autogenerado del API principal
-        "evidencia": _selectedImage != null
-            ? base64Encode(_selectedImage!.readAsBytesSync())
-            : "",
+        "evidencia": _selectedFile != null
+            ? base64Encode(_selectedFile!.readAsBytesSync())
+            : (_selectedImage != null
+                  ? base64Encode(_selectedImage!.readAsBytesSync())
+                  : ""),
         "obs": _notaController.text.length > 1000
             ? _notaController.text.substring(0, 1000)
             : _notaController.text,
@@ -702,10 +786,10 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
           children: [
             Row(
               children: [
-                const Icon(Icons.receipt, color: Colors.red),
+                const Icon(Icons.attach_file, color: Colors.red),
                 const SizedBox(width: 8),
                 const Text(
-                  'Adjuntar Factura',
+                  'Adjuntar Evidencia',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const Text(
@@ -723,9 +807,15 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   ElevatedButton.icon(
                     onPressed: _pickImage,
                     icon: Icon(
-                      _selectedImage == null ? Icons.add_a_photo : Icons.edit,
+                      (_selectedImage == null && _selectedFile == null)
+                          ? Icons.add
+                          : Icons.edit,
                     ),
-                    label: Text(_selectedImage == null ? 'Agregar' : 'Cambiar'),
+                    label: Text(
+                      (_selectedImage == null && _selectedFile == null)
+                          ? 'Agregar'
+                          : 'Cambiar',
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
@@ -734,18 +824,65 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
               ],
             ),
             const SizedBox(height: 12),
-            if (_selectedImage != null)
+
+            // Mostrar archivo seleccionado
+            if (_selectedFile != null)
               Container(
-                height: 200,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(_selectedImage!, fit: BoxFit.cover),
-                ),
+                child: _selectedFileType == 'image'
+                    ? Container(
+                        height: 200,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(_selectedFile!, fit: BoxFit.cover),
+                        ),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.picture_as_pdf,
+                              color: Colors.red,
+                              size: 40,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Archivo PDF seleccionado',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _selectedFileName ?? 'archivo.pdf',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                              size: 24,
+                            ),
+                          ],
+                        ),
+                      ),
               )
             else
               Container(
@@ -754,10 +891,12 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
                   border: Border.all(
-                    color: _selectedImage == null
+                    color: (_selectedImage == null && _selectedFile == null)
                         ? Colors.red.shade300
                         : Colors.grey.shade300,
-                    width: _selectedImage == null ? 2 : 1,
+                    width: (_selectedImage == null && _selectedFile == null)
+                        ? 2
+                        : 1,
                   ),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -765,20 +904,31 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.receipt_outlined,
-                      color: _selectedImage == null ? Colors.red : Colors.grey,
+                      Icons.attach_file,
+                      color: (_selectedImage == null && _selectedFile == null)
+                          ? Colors.red
+                          : Colors.grey,
                       size: 40,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Agregar evidencia (Obligatorio)',
                       style: TextStyle(
-                        color: _selectedImage == null
+                        color: (_selectedImage == null && _selectedFile == null)
                             ? Colors.red
                             : Colors.grey,
-                        fontWeight: _selectedImage == null
+                        fontWeight:
+                            (_selectedImage == null && _selectedFile == null)
                             ? FontWeight.bold
                             : FontWeight.normal,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Imagen o PDF',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -1292,7 +1442,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      'Por favor complete todos los campos obligatorios (*) e incluya una imagen',
+                      'Por favor complete todos los campos obligatorios (*) e incluya un archivo de evidencia',
                       style: TextStyle(
                         color: Colors.orange,
                         fontWeight: FontWeight.w500,

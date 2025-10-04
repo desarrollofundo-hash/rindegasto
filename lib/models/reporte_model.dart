@@ -4,6 +4,7 @@ class Reporte {
   final String? dni;
   final String? politica;
   final String? categoria;
+  final String? tipogasto;
   final String? ruc;
   final String? proveedor;
   final String? tipocomprobante;
@@ -34,6 +35,7 @@ class Reporte {
     this.dni,
     this.politica,
     this.categoria,
+    this.tipogasto,
     this.ruc,
     this.proveedor,
     this.tipocomprobante,
@@ -67,6 +69,7 @@ class Reporte {
         dni: _parseStringSafe(json['dni']),
         politica: _parseStringSafe(json['politica']),
         categoria: _parseStringSafe(json['categoria']),
+        tipogasto: _parseStringSafe(json['tipogasto']),
         ruc: _parseStringSafe(json['ruc']),
         proveedor: _parseStringSafe(json['proveedor']),
         tipocomprobante: _parseStringSafe(
@@ -133,6 +136,7 @@ class Reporte {
       'dni': dni,
       'politica': politica,
       'categoria': categoria,
+      'tipogasto': tipogasto,
       'ruc': ruc,
       'proveedor': proveedor,
       'tipocombrobante': tipocomprobante,

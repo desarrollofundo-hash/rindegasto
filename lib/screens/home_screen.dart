@@ -5,12 +5,12 @@ import '../widgets/gastos_list.dart';
 import '../widgets/informes_list.dart';
 import '../widgets/reportes_list.dart';
 import '../widgets/edit_reporte_modal.dart';
+import '../widgets/nuevo_informe_modal.dart';
 import '../widgets/tabbed_screen.dart';
 import '../models/gasto_model.dart';
 import '../services/api_service.dart';
 import '../services/user_service.dart';
 import '../models/reporte_model.dart';
-import './informes/agregar_informe_screen.dart';
 import './informes/detalle_informe_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -239,14 +239,23 @@ class _HomeScreenState extends State<HomeScreen> {
   // ========== MÉTODOS DE INFORMES ==========
 
   Future<void> _agregarInforme() async {
-    final nuevo = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AgregarInformeScreen()),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) => NuevoInformeModal(
+        onInformeCreated: (nuevoInforme) {
+          setState(() => informes.add(nuevoInforme));
+          _mostrarSnackInformeCreado(nuevoInforme);
+        },
+        onCancel: () {
+          Navigator.of(context).pop();
+        },
+      ),
     );
-    if (nuevo != null && nuevo is Gasto) {
-      setState(() => informes.add(nuevo));
-      _mostrarSnackInformeCreado(nuevo);
-    }
   }
 
   void _mostrarSnackInformeCreado(Gasto nuevo) {

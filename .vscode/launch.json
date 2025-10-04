@@ -1,7 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
-    /*     {
+       /*  {
             "name": "Flutter: Launch on Pixel 6",
             "request": "launch",
             "type": "dart",
@@ -26,7 +26,7 @@
             "request": "attach",
             "type": "dart",
             "deviceId": "RF8X20GFZFB"
-        }, 
+        },  
        /*  {
             "name": "22101316UG",
             "request": "launch",

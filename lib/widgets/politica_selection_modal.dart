@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 /// Modal para seleccionar política antes de mostrar la factura
 class PoliticaSelectionModal extends StatefulWidget {
@@ -17,9 +18,35 @@ class PoliticaSelectionModal extends StatefulWidget {
 
 class _PoliticaSelectionModalState extends State<PoliticaSelectionModal> {
   String? _selectedPolitica;
+  List<String> _politicas = [];
+  bool _isLoading = false;
+  String? _error;
+  final ApiService _apiService = ApiService();
 
-  // Lista de políticas disponibles (puedes modificar estas según tus necesidades)
-  final List<String> _politicas = ['General', 'Gasto de Movilidad'];
+  @override
+  void initState() {
+    super.initState();
+    _loadPoliticas();
+  }
+
+  Future<void> _loadPoliticas() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final politicas = await _apiService.getRendicionPoliticas();
+      setState(() {
+        _politicas = politicas.map((e) => e.value.toString()).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,34 +95,53 @@ class _PoliticaSelectionModalState extends State<PoliticaSelectionModal> {
           ),
           const SizedBox(height: 24),
 
-          // Lista de políticas
-          Expanded(
-            child: ListView.builder(
-              itemCount: _politicas.length,
-              itemBuilder: (context, index) {
-                final politica = _politicas[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: RadioListTile<String>(
-                    title: Text(
-                      politica,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    value: politica,
-                    groupValue: _selectedPolitica,
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedPolitica = value;
-                        });
-                      }
-                    },
-                    activeColor: Theme.of(context).primaryColor,
+          // Dropdown de políticas desde API
+          if (_isLoading) const Center(child: CircularProgressIndicator()),
+          if (!_isLoading && _error != null)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error al cargar políticas: $_error',
+                    style: TextStyle(color: Colors.red),
                   ),
-                );
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _loadPoliticas,
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            ),
+          if (!_isLoading && _error == null)
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: 'Seleccionar Política',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.policy),
+              ),
+              value: _selectedPolitica,
+              items: _politicas
+                  .map(
+                    (politica) => DropdownMenuItem<String>(
+                      value: politica,
+                      child: Text(politica),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedPolitica = value;
+                });
+              },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Debes seleccionar una política';
+                }
+                return null;
               },
             ),
-          ),
 
           const SizedBox(height: 16),
 
@@ -104,7 +150,9 @@ class _PoliticaSelectionModalState extends State<PoliticaSelectionModal> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: widget.onCancel,
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     side: BorderSide(color: Colors.grey[400]!),

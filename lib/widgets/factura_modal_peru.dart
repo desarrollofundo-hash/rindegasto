@@ -153,43 +153,55 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
       return; // Solo cargar para política GENERAL
     }
 
-    setState(() {
-      _isLoadingCategorias = true;
-      _errorCategorias = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoadingCategorias = true;
+        _errorCategorias = null;
+      });
+    }
 
     try {
       final categorias = await CategoriaService.getCategoriasGeneral();
-      setState(() {
-        _categoriasGeneral = categorias;
-        _isLoadingCategorias = false;
-      });
+      if (mounted) {
+        setState(() {
+          _categoriasGeneral = categorias;
+          _isLoadingCategorias = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorCategorias = e.toString();
-        _isLoadingCategorias = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorCategorias = e.toString();
+          _isLoadingCategorias = false;
+        });
+      }
     }
   }
 
   /// Cargar tipos de gasto desde la API
   Future<void> _loadTiposGasto() async {
-    setState(() {
-      _isLoadingTiposGasto = true;
-      _errorTiposGasto = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoadingTiposGasto = true;
+        _errorTiposGasto = null;
+      });
+    }
 
     try {
       final tiposGasto = await _apiService.getTiposGasto();
-      setState(() {
-        _tiposGasto = tiposGasto;
-        _isLoadingTiposGasto = false;
-      });
+      if (mounted) {
+        setState(() {
+          _tiposGasto = tiposGasto;
+          _isLoadingTiposGasto = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorTiposGasto = e.toString();
-        _isLoadingTiposGasto = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorTiposGasto = e.toString();
+          _isLoadingTiposGasto = false;
+        });
+      }
     }
   }
 
@@ -269,7 +281,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   /// Seleccionar archivo (imagen o PDF)
   Future<void> _pickImage() async {
     try {
-      setState(() => _isLoading = true);
+      if (mounted) setState(() => _isLoading = true);
 
       // Mostrar opciones para seleccionar tipo de archivo
       final selectedOption = await showDialog<String>(
@@ -316,17 +328,16 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             File file = File(image.path);
             int fileSize = await file.length();
             const int maxSize = 1024 * 1024; // 1MB en bytes
+            const int compressThreshold = 2 * 1024 * 1024; // 2MB en bytes
             int quality = 85;
-            // Si la imagen pesa más de 1MB, intentar comprimirla
-            if (fileSize > maxSize) {
+            // Solo comprimir si la imagen pesa más de 2MB
+            if (fileSize > compressThreshold) {
               try {
                 // Usar flutter_image_compress para comprimir
-                // Importar si no está: import 'package:flutter_image_compress/flutter_image_compress.dart';
                 final targetPath = image.path
                     .replaceFirst('.jpg', '_compressed.jpg')
                     .replaceFirst('.jpeg', '_compressed.jpeg');
                 List<int> compressedBytes = await file.readAsBytes();
-                // bool compressed = false; // Ya no se usa
                 while (fileSize > maxSize && quality > 10) {
                   final result = await FlutterImageCompress.compressWithFile(
                     file.absolute.path,
@@ -352,12 +363,14 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                       ),
                     );
                   }
-                  setState(() {
-                    _selectedImage = null;
-                    _selectedFile = null;
-                    _selectedFileType = null;
-                    _selectedFileName = null;
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _selectedImage = null;
+                      _selectedFile = null;
+                      _selectedFileType = null;
+                      _selectedFileName = null;
+                    });
+                  }
                   return;
                 }
                 // Guardar la imagen comprimida en un archivo temporal
@@ -383,12 +396,14 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 return;
               }
             }
-            setState(() {
-              _selectedImage = file;
-              _selectedFile = file;
-              _selectedFileType = 'image';
-              _selectedFileName = image.name;
-            });
+            if (mounted) {
+              setState(() {
+                _selectedImage = file;
+                _selectedFile = file;
+                _selectedFileType = 'image';
+                _selectedFileName = image.name;
+              });
+            }
             _validateForm();
           }
         } else if (selectedOption == 'pdf') {
@@ -401,12 +416,14 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
 
           if (result != null && result.files.isNotEmpty) {
             final file = File(result.files.first.path!);
-            setState(() {
-              _selectedImage = null; // Limpiar imagen si había una
-              _selectedFile = file;
-              _selectedFileType = 'pdf';
-              _selectedFileName = result.files.first.name;
-            });
+            if (mounted) {
+              setState(() {
+                _selectedImage = null; // Limpiar imagen si había una
+                _selectedFile = file;
+                _selectedFileType = 'pdf';
+                _selectedFileName = result.files.first.name;
+              });
+            }
             _validateForm();
           }
         }
@@ -567,7 +584,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     }
 
     try {
-      setState(() => _isLoading = true);
+      if (mounted) setState(() => _isLoading = true);
 
       // Formatear fecha para SQL Server (solo fecha, sin hora)
       String fechaSQL = "";
@@ -738,7 +755,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     } finally {
       print('🔄 Finalizando proceso...');
       if (mounted) {
-        setState(() => _isLoading = false);
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
@@ -1259,9 +1276,11 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             },
             onChanged: (value) {
               if (value != null) {
-                setState(() {
-                  _tipoGastoController.text = value;
-                });
+                if (mounted) {
+                  setState(() {
+                    _tipoGastoController.text = value;
+                  });
+                }
                 _validateForm(); // Validar cuando cambie el tipo de gasto
               }
             },

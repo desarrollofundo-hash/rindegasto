@@ -31,6 +31,10 @@ class FacturaModalMovilidad extends StatefulWidget {
 }
 
 class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
+  // Para tipos de gasto
+  bool _isLoadingTiposGasto = false;
+  String? _errorTiposGasto;
+  List<String> _tiposGasto = [];
   // Controladores para cada campo específico de movilidad
   late TextEditingController _politicaController;
   late TextEditingController _rucController;
@@ -72,7 +76,28 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
     super.initState();
     _initializeControllers();
     _loadCategorias();
+    _loadTiposGasto();
     _addValidationListeners();
+  }
+
+  /// Cargar tipos de gasto desde la API
+  Future<void> _loadTiposGasto() async {
+    setState(() {
+      _isLoadingTiposGasto = true;
+      _errorTiposGasto = null;
+    });
+    try {
+      final tipos = await _apiService.getTiposGasto();
+      setState(() {
+        _tiposGasto = tipos.map((e) => e.toString()).toList();
+        _isLoadingTiposGasto = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorTiposGasto = e.toString();
+        _isLoadingTiposGasto = false;
+      });
+    }
   }
 
   /// Agregar listeners para validación en tiempo real
@@ -210,6 +235,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
     _motivoViajeController = TextEditingController(text: '');
     _tipoTransporteController = TextEditingController(text: 'Taxi');
     _categoriaController = TextEditingController(text: '');
+    _tipoGastoController = TextEditingController(text: '');
   }
 
   @override
@@ -1113,6 +1139,93 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
                 ),
               ],
             ),
+
+            // Sección de tipo de gasto debajo de categoría
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.local_offer, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Text(
+                  'Tipo de Gasto',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_isLoadingTiposGasto)
+              const Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 8),
+                    Text(
+                      'Cargando tipos de gasto...',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+              )
+            else if (_errorTiposGasto != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error, color: Colors.red.shade600),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Error al cargar tipos de gasto: $_errorTiposGasto',
+                        style: TextStyle(color: Colors.red.shade700),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _loadTiposGasto,
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              )
+            else
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Seleccionar Tipo de Gasto *',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.local_offer),
+                ),
+                value:
+                    _tipoGastoController.text.isNotEmpty &&
+                        _tiposGasto.contains(_tipoGastoController.text)
+                    ? _tipoGastoController.text
+                    : null,
+                items: _tiposGasto
+                    .map(
+                      (tipo) => DropdownMenuItem<String>(
+                        value: tipo,
+                        child: Text(tipo),
+                      ),
+                    )
+                    .toList(),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Tipo de gasto es obligatorio';
+                  }
+                  return null;
+                },
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _tipoGastoController.text = value;
+                    });
+                    _validateForm();
+                  }
+                },
+              ),
             const SizedBox(height: 12),
             Row(
               children: [

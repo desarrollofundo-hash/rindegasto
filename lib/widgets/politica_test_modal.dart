@@ -34,10 +34,12 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
 
   Future<void> _loadPoliticas() async {
     print('🚀 Cargando políticas desde API de categorías...');
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       // Obtenemos todas las categorías y extraemos las políticas únicas
@@ -70,16 +72,20 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
         print('  - ${politica.value} (ID: ${politica.id})');
       }
 
-      setState(() {
-        _politicas = politicasUnicas;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _politicas = politicasUnicas;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('❌ Error cargando políticas: $e');
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -362,9 +368,11 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
             );
           }).toList(),
           onChanged: (value) {
-            setState(() {
-              _selectedPolitica = value;
-            });
+            if (mounted) {
+              setState(() {
+                _selectedPolitica = value;
+              });
+            }
           },
         ),
 

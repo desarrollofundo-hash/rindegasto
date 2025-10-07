@@ -33,10 +33,12 @@ class _PoliticaApiSelectionModalState extends State<PoliticaApiSelectionModal> {
 
   Future<void> _loadPoliticas() async {
     print('🚀 Iniciando carga de políticas...');
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final politicas = await _apiService.getRendicionPoliticas();
@@ -44,16 +46,20 @@ class _PoliticaApiSelectionModalState extends State<PoliticaApiSelectionModal> {
       for (var politica in politicas) {
         print('  - ${politica.value} (ID: ${politica.id})');
       }
-      setState(() {
-        _politicas = politicas;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _politicas = politicas;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('❌ Error cargando políticas: $e');
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 

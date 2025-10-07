@@ -331,6 +331,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
 
   /// Cargar políticas desde la API
   Future<void> _loadPoliticas() async {
+    if (!mounted) return;
     setState(() {
       _isLoadingPoliticas = true;
     });
@@ -341,6 +342,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
       for (var pol in politicas) {
         print('  - ${pol.value}');
       }
+      if (!mounted) return;
       setState(() {
         _politicas = politicas;
         _isLoadingPoliticas = false;
@@ -349,6 +351,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
       });
     } catch (e) {
       print('❌ Error cargando políticas: $e');
+      if (!mounted) return;
       setState(() {
         _isLoadingPoliticas = false;
         // Mantener el valor original incluso si hay error
@@ -363,6 +366,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
       return; // Solo cargar para política GENERAL
     }
 
+    if (!mounted) return;
     setState(() {
       _isLoadingCategorias = true;
       _errorCategorias = null;
@@ -389,6 +393,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
           )
           .toList();
 
+      if (!mounted) return;
       setState(() {
         _categoriasGeneral = categoriasModelo;
         _isLoadingCategorias = false;
@@ -396,6 +401,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
       });
     } catch (e) {
       print('❌ Error cargando categorías: $e');
+      if (!mounted) return;
       setState(() {
         _errorCategorias = e.toString();
         _isLoadingCategorias = false;
@@ -406,6 +412,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
 
   /// Cargar tipos de gasto desde la API
   Future<void> _loadTiposGasto() async {
+    if (!mounted) return;
     setState(() {
       _isLoadingTiposGasto = true;
       _errorTiposGasto = null;
@@ -413,12 +420,14 @@ class _EditReporteModalState extends State<EditReporteModal> {
 
     try {
       final tiposGasto = await _apiService.getTiposGasto();
+      if (!mounted) return;
       setState(() {
         _tiposGasto = tiposGasto;
         _isLoadingTiposGasto = false;
         // No cambiar _selectedTipoGasto aquí, mantener el valor original para mostrarlo
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorTiposGasto = e.toString();
         _isLoadingTiposGasto = false;

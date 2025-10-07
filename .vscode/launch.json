@@ -1,7 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
-       /*  {
+        /*  {
             "name": "Flutter: Launch on Pixel 6",
             "request": "launch",
             "type": "dart",
@@ -17,7 +17,7 @@
         {
             "name": "SM A1555M",
             "request": "launch",
-            "type": "dart", 
+            "type": "dart",
             "program": "lib/main.dart",
             "deviceId": "RF8X20GFZFB"
         },
@@ -26,8 +26,8 @@
             "request": "attach",
             "type": "dart",
             "deviceId": "RF8X20GFZFB"
-        },  
-       /*  {
+        },
+        /*  {
             "name": "22101316UG",
             "request": "launch",
             "type": "dart",

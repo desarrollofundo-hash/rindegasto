@@ -22,6 +22,7 @@ class NuevoInformeModal extends StatefulWidget {
 class _NuevoInformeModalState extends State<NuevoInformeModal> {
   final _formKey = GlobalKey<FormState>();
   final _tituloController = TextEditingController();
+  final _notaController = TextEditingController();
   final ApiService _apiService = ApiService();
 
   List<DropdownOption> _politicas = [];
@@ -39,6 +40,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
   @override
   void dispose() {
     _tituloController.dispose();
+    _notaController.dispose();
     super.dispose();
   }
 
@@ -80,6 +82,9 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
           builder: (context) => InformeFlowScreen(
             tituloInforme: _tituloController.text.trim(),
             politicaSeleccionada: _selectedPolitica!,
+            nota: _notaController.text.trim().isNotEmpty
+                ? _notaController.text.trim()
+                : null,
           ),
         ),
       );
@@ -87,13 +92,20 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
       // Si el usuario completó el flujo exitosamente
       if (resultado == true) {
         // Crear el informe final
+        final fechaCreacion = DateTime.now();
+        final descripcionBase =
+            'Informe creado el ${fechaCreacion.day}/${fechaCreacion.month}/${fechaCreacion.year}';
+        final nota = _notaController.text.trim();
+        final descripcionCompleta = nota.isNotEmpty
+            ? '$descripcionBase\nNota: $nota'
+            : descripcionBase;
+
         final nuevoInforme = Gasto(
           titulo: _tituloController.text.trim(),
-          descripcion:
-              'Informe creado el ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+          descripcion: descripcionCompleta,
           monto: '0.00',
           fecha:
-              '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+              '${fechaCreacion.day}/${fechaCreacion.month}/${fechaCreacion.year}',
           categoria: 'Informe',
           estado: 'Completado',
         );
@@ -124,10 +136,10 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
+      height: MediaQuery.of(context).size.height * 0.8,
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
@@ -256,122 +268,181 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
   Widget _buildContent() {
     return Form(
       key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Campo de título
-          const Text(
-            'Información del Informe',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          TextFormField(
-            controller: _tituloController,
-            decoration: InputDecoration(
-              labelText: 'Título del Informe *',
-              hintText: 'Ej: Informe de gastos octubre 2025',
-              prefixIcon: const Icon(Icons.title, color: Colors.indigo),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Colors.indigo, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Campo de título
+            const Text(
+              'Información del Informe',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
             ),
-            maxLength: 100,
-            onChanged: (value) {
-              setState(() {}); // Para actualizar el estado del botón
-            },
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Por favor ingresa un título para el informe';
-              }
-              if (value.trim().length < 3) {
-                return 'El título debe tener al menos 3 caracteres';
-              }
-              return null;
-            },
-          ),
+            const SizedBox(height: 20),
 
-          const SizedBox(height: 16),
-
-          // Dropdown de políticas
-          const Text(
-            'Política Aplicable',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          _buildPoliticasDropdown(),
-
-          const SizedBox(height: 16),
-
-          // Información adicional
-          if (_selectedPolitica != null) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.indigo.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.indigo.shade200),
+            TextFormField(
+              controller: _tituloController,
+              decoration: InputDecoration(
+                labelText: 'Título del Informe *',
+                hintText: 'Ej: Informe de gastos octubre 2025',
+                prefixIcon: const Icon(Icons.title, color: Colors.indigo),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.indigo, width: 2),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.red.shade600, width: 2),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        color: Colors.indigo.shade600,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Política seleccionada:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+              maxLength: 100,
+              textCapitalization: TextCapitalization.words,
+              onChanged: (value) {
+                setState(() {}); // Para actualizar el estado del botón
+              },
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Por favor ingresa un título para el informe';
+                }
+                if (value.trim().length < 3) {
+                  return 'El título debe tener al menos 3 caracteres';
+                }
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            // Campo de nota
+            TextFormField(
+              controller: _notaController,
+              decoration: InputDecoration(
+                labelText: 'Nota (opcional)',
+                hintText: 'Ej: Gastos del viaje de trabajo a Lima',
+                prefixIcon: const Icon(Icons.note_add, color: Colors.indigo),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.indigo, width: 2),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
+                alignLabelWithHint: true,
+              ),
+              maxLines: 4,
+              minLines: 3,
+              maxLength: 200,
+              textInputAction: TextInputAction.newline,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+
+            const SizedBox(height: 24),
+
+            // Dropdown de políticas
+            const Text(
+              'Política Aplicable',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            _buildPoliticasDropdown(),
+
+            // Información adicional
+            if (_selectedPolitica != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.indigo.shade200, width: 1.5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.indigo.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.check_circle,
+                            color: Colors.indigo.shade600,
+                            size: 18,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _selectedPolitica!.value,
-                    style: TextStyle(
-                      color: Colors.indigo.shade700,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Política seleccionada:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Text(
+                      _selectedPolitica!.value,
+                      style: TextStyle(
+                        color: Colors.indigo.shade700,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
+            ],
 
-          // Espaciador
-          const Spacer(),
-        ],
+            // Espaciador para el scrolling
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -379,10 +450,11 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
   Widget _buildPoliticasDropdown() {
     if (_isLoadingPoliticas) {
       return Container(
-        height: 60,
+        height: 64,
         decoration: BoxDecoration(
           border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.grey.shade50,
         ),
         child: const Center(
           child: Row(
@@ -391,10 +463,16 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
               SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(Colors.indigo),
+                ),
               ),
               SizedBox(width: 12),
-              Text('Cargando políticas...'),
+              Text(
+                'Cargando políticas...',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
             ],
           ),
         ),
@@ -403,17 +481,17 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
 
     if (_errorPoliticas != null) {
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(color: Colors.red.shade300),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           color: Colors.red.shade50,
         ),
         child: Column(
           children: [
             Row(
               children: [
-                Icon(Icons.error_outline, color: Colors.red.shade600),
+                Icon(Icons.error_outline, color: Colors.red.shade600, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -421,22 +499,26 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
                     style: TextStyle(
                       color: Colors.red.shade700,
                       fontWeight: FontWeight.w500,
+                      fontSize: 14,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: _loadPoliticas,
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('Reintentar'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 8,
-                  horizontal: 12,
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _loadPoliticas,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Reintentar'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
@@ -451,20 +533,30 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
         labelText: 'Política *',
         prefixIcon: const Icon(Icons.policy, color: Colors.indigo),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.indigo, width: 2),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade600, width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 12,
+          vertical: 16,
         ),
       ),
       hint: const Text('Seleccionar política...'),

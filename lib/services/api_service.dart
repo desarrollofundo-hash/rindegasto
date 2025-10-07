@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/reporte_model.dart';
+import '../models/reporte_informe_model.dart';
 import '../models/dropdown_option.dart';
 import 'connectivity_helper.dart';
 
@@ -18,6 +19,7 @@ class ApiService {
     required String id,
     required String idrend,
     required String user,
+    required String ruc,
   }) async {
     /*     debugPrint('🚀 Iniciando petición a API...');
     debugPrint('📍 URL base: $baseUrl/reporte/rendiciongasto');
@@ -42,9 +44,9 @@ class ApiService {
       }
 
       // Construir la URL con los parámetros dinámicos
-      final uri = Uri.parse(
-        '$baseUrl/reporte/rendiciongasto',
-      ).replace(queryParameters: {'id': id, 'idrend': idrend, 'user': user});
+      final uri = Uri.parse('$baseUrl/reporte/rendiciongasto').replace(
+        queryParameters: {'id': id, 'idrend': idrend, 'user': user, 'ruc': ruc},
+      );
       /* 
       debugPrint('📡 Realizando petición HTTP GET...');
       debugPrint('🌍 URL final: $uri');
@@ -90,6 +92,274 @@ class ApiService {
           for (int i = 0; i < jsonData.length; i++) {
             try {
               final reporte = Reporte.fromJson(jsonData[i]);
+              reportes.add(reporte);
+            } catch (e) {
+              errores++;
+              /*               debugPrint('⚠️ Error al parsear item $i: $e');
+ */
+              if (errores < 5) {
+                debugPrint('📄 JSON problemático: ${jsonData[i]}');
+              }
+            }
+          }
+
+          if (errores > 0) {
+            /*             debugPrint('⚠️ Se encontraron $errores errores de parsing');
+ */
+          }
+
+          /*    debugPrint(
+            '✅ ${reportes.length} reportes procesados correctamente ($errores errores)',
+          ); */
+          return reportes;
+        } catch (e) {
+          debugPrint('❌ Error al parsear JSON: $e');
+          debugPrint(
+            '📄 Tipo de respuesta: ${response.headers['content-type']}',
+          );
+          debugPrint(
+            '📄 Respuesta raw (primeros 500 chars): '
+            '${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}',
+          );
+          throw Exception('Error al procesar respuesta del servidor: $e');
+        }
+      } else {
+        /*      debugPrint('❌ Status ${response.statusCode}');
+        debugPrint('📄 Response body: ${response.body}'); */
+        throw Exception(
+          'Error del servidor (${response.statusCode}): ${response.reasonPhrase}',
+        );
+      }
+    } on SocketException catch (e) {
+      debugPrint('🔌 Error de conexión (SocketException): $e');
+      throw Exception(
+        'Sin conexión al servidor. Verifica tu conexión a internet y que el servidor esté disponible.',
+      );
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP: $e');
+      throw Exception('Error de protocolo HTTP: $e');
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato: $e');
+      throw Exception('El servidor devolvió datos en formato incorrecto');
+    } on Exception catch (e) {
+      debugPrint('❌ Error general: $e');
+      rethrow;
+    } catch (e) {
+      debugPrint('💥 Error no manejado: $e');
+      throw Exception('Error inesperado: $e');
+    }
+  }
+
+  Future<List<ReporteInforme>> getReportesRendicionInforme({
+    required String id,
+    required String idrend,
+    required String user,
+    required String ruc,
+  }) async {
+    /*     debugPrint('🚀 Iniciando petición a API...');
+    debugPrint('📍 URL base: $baseUrl/reporte/rendiciongasto');
+    debugPrint('🏗️ Plataforma: ${Platform.operatingSystem}');
+    debugPrint('🔧 Modo: ${kReleaseMode ? 'Release' : 'Debug'}'); */
+
+    try {
+      // Diagnóstico de conectividad en debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        debugPrint('🔬 Diagnóstico completo: $diagnostic');
+
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      // Construir la URL con los parámetros dinámicos
+      final uri = Uri.parse('$baseUrl/reporte/rendicioninforme').replace(
+        queryParameters: {'id': id, 'idrend': idrend, 'user': user, 'ruc': ruc},
+      );
+      /* 
+      debugPrint('📡 Realizando petición HTTP GET...');
+      debugPrint('🌍 URL final: $uri');
+ */
+      final response = await client
+          .get(
+            uri,
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json; charset=UTF-8',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+              'Cache-Control': 'no-cache',
+            },
+          )
+          .timeout(timeout);
+      /* 
+      debugPrint('📊 Respuesta recibida - Status: ${response.statusCode}');
+      debugPrint('📦 Headers: ${response.headers}');
+      debugPrint('📏 Tamaño de respuesta: ${response.body.length} bytes'); */
+
+      if (response.statusCode == 200) {
+        debugPrint('✅ Status 200 - Procesando JSON...');
+
+        if (response.body.isEmpty) {
+          throw Exception('⚠️ Respuesta vacía del servidor');
+        }
+
+        try {
+          final List<dynamic> jsonData = json.decode(response.body);
+          /*   debugPrint(
+            '🎯 JSON parseado correctamente. Items: ${jsonData.length}',
+          ); */
+
+          if (jsonData.isEmpty) {
+            debugPrint('⚠️ La API devolvió una lista vacía');
+            return [];
+          }
+
+          final reportes = <ReporteInforme>[];
+          int errores = 0;
+
+          for (int i = 0; i < jsonData.length; i++) {
+            try {
+              final reporte = ReporteInforme.fromJson(jsonData[i]);
+              reportes.add(reporte);
+            } catch (e) {
+              errores++;
+              /*               debugPrint('⚠️ Error al parsear item $i: $e');
+ */
+              if (errores < 5) {
+                debugPrint('📄 JSON problemático: ${jsonData[i]}');
+              }
+            }
+          }
+
+          if (errores > 0) {
+            /*             debugPrint('⚠️ Se encontraron $errores errores de parsing');
+ */
+          }
+
+          /*    debugPrint(
+            '✅ ${reportes.length} reportes procesados correctamente ($errores errores)',
+          ); */
+          return reportes;
+        } catch (e) {
+          debugPrint('❌ Error al parsear JSON: $e');
+          debugPrint(
+            '📄 Tipo de respuesta: ${response.headers['content-type']}',
+          );
+          debugPrint(
+            '📄 Respuesta raw (primeros 500 chars): '
+            '${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}',
+          );
+          throw Exception('Error al procesar respuesta del servidor: $e');
+        }
+      } else {
+        /*      debugPrint('❌ Status ${response.statusCode}');
+        debugPrint('📄 Response body: ${response.body}'); */
+        throw Exception(
+          'Error del servidor (${response.statusCode}): ${response.reasonPhrase}',
+        );
+      }
+    } on SocketException catch (e) {
+      debugPrint('🔌 Error de conexión (SocketException): $e');
+      throw Exception(
+        'Sin conexión al servidor. Verifica tu conexión a internet y que el servidor esté disponible.',
+      );
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP: $e');
+      throw Exception('Error de protocolo HTTP: $e');
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato: $e');
+      throw Exception('El servidor devolvió datos en formato incorrecto');
+    } on Exception catch (e) {
+      debugPrint('❌ Error general: $e');
+      rethrow;
+    } catch (e) {
+      debugPrint('💥 Error no manejado: $e');
+      throw Exception('Error inesperado: $e');
+    }
+  }
+
+
+  Future<List<ReporteInforme>> getReportesRendicionInforme_Detalle({
+    required String idrend,
+  }) async {
+    /*     debugPrint('🚀 Iniciando petición a API...');
+    debugPrint('📍 URL base: $baseUrl/reporte/rendiciongasto');
+    debugPrint('🏗️ Plataforma: ${Platform.operatingSystem}');
+    debugPrint('🔧 Modo: ${kReleaseMode ? 'Release' : 'Debug'}'); */
+
+    try {
+      // Diagnóstico de conectividad en debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        debugPrint('🔬 Diagnóstico completo: $diagnostic');
+
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      // Construir la URL con los parámetros dinámicos
+      final uri = Uri.parse('$baseUrl/reporte/rendicioninforme_detalle').replace(
+        queryParameters: {'idrend': idrend},
+      );
+      /* 
+      debugPrint('📡 Realizando petición HTTP GET...');
+      debugPrint('🌍 URL final: $uri');
+ */
+      final response = await client
+          .get(
+            uri,
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json; charset=UTF-8',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+              'Cache-Control': 'no-cache',
+            },
+          )
+          .timeout(timeout);
+      /* 
+      debugPrint('📊 Respuesta recibida - Status: ${response.statusCode}');
+      debugPrint('📦 Headers: ${response.headers}');
+      debugPrint('📏 Tamaño de respuesta: ${response.body.length} bytes'); */
+
+      if (response.statusCode == 200) {
+        debugPrint('✅ Status 200 - Procesando JSON...');
+
+        if (response.body.isEmpty) {
+          throw Exception('⚠️ Respuesta vacía del servidor');
+        }
+
+        try {
+          final List<dynamic> jsonData = json.decode(response.body);
+          /*   debugPrint(
+            '🎯 JSON parseado correctamente. Items: ${jsonData.length}',
+          ); */
+
+          if (jsonData.isEmpty) {
+            debugPrint('⚠️ La API devolvió una lista vacía');
+            return [];
+          }
+
+          final reportes = <ReporteInforme>[];
+          int errores = 0;
+
+          for (int i = 0; i < jsonData.length; i++) {
+            try {
+              final reporte = ReporteInforme.fromJson(jsonData[i]);
               reportes.add(reporte);
             } catch (e) {
               errores++;
@@ -1490,6 +1760,213 @@ class ApiService {
       }
       debugPrint('💥 Error no manejado al guardar movilidad: $e');
       throw Exception('Error inesperado al guardar movilidad: $e');
+    }
+  }
+
+  /// Guardar informe de rendición
+  /// [informeData] - Map con los datos del informe a guardar
+  /// Retorna el IdInf generado si se guardó exitosamente, null en caso contrario
+  Future<int?> saveRendicionInforme(Map<String, dynamic> informeData) async {
+    debugPrint('🚀 Guardando informe de rendición...');
+    debugPrint('📍 URL: $baseUrl/saveupdate/saverendicioninforme');
+    debugPrint('📦 Datos a enviar: $informeData');
+
+    try {
+      // Diagnóstico de conectividad en modo debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      final response = await client
+          .post(
+            Uri.parse('$baseUrl/saveupdate/saverendicioninforme?returnId=true'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Accept': 'application/json',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+              'X-Return-Format': 'json',
+              'X-Return-Id': 'true',
+            },
+            body: json.encode([informeData]),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      debugPrint(
+        '📊 Respuesta guardar informe - Status: ${response.statusCode}',
+      );
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Verificar si la respuesta contiene errores
+        if (response.body.contains('Error') ||
+            response.body.contains('error')) {
+          debugPrint('❌ Error en respuesta del servidor: ${response.body}');
+          throw Exception('Error del servidor: ${response.body}');
+        }
+
+        debugPrint('✅ Informe de rendición guardado exitosamente');
+
+        // Verificar si la respuesta es solo el mensaje de texto esperado
+        if (response.body.trim() == "UPSERT realizado correctamente.") {
+          debugPrint('📝 Respuesta de texto plano detectada para informe');
+          throw Exception(
+            'El servidor guardó el informe pero no devolvió el IdInf generado.\n\n'
+            'SOLUCIÓN REQUERIDA:\n'
+            'El backend debe modificarse para devolver:\n'
+            '{"idInf": 12345, "message": "UPSERT realizado correctamente"}\n\n'
+            'Contacta al desarrollador del backend.',
+          );
+        }
+
+        // Intentar extraer el idInf de la respuesta JSON
+        try {
+          final responseData = json.decode(response.body);
+          int? idInf;
+
+          // La respuesta puede ser un objeto con idInf o un array con un objeto que tiene idInf
+          if (responseData is Map<String, dynamic>) {
+            idInf = responseData['idInf'] ?? responseData['id'];
+          } else if (responseData is List && responseData.isNotEmpty) {
+            final firstItem = responseData[0];
+            if (firstItem is Map<String, dynamic>) {
+              idInf = firstItem['idInf'] ?? firstItem['id'];
+            }
+          }
+
+          if (idInf != null) {
+            debugPrint('🆔 idInf obtenido desde JSON: $idInf');
+            return idInf;
+          } else {
+            debugPrint('⚠️ JSON válido pero sin idInf');
+            debugPrint('📄 Estructura de respuesta: $responseData');
+
+            throw Exception(
+              'El servidor devolvió JSON pero sin el campo idInf requerido.\n\n'
+              'Respuesta recibida: $responseData\n\n'
+              'El backend debe incluir el campo "idInf" o "id" en la respuesta.',
+            );
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error al parsear la respuesta JSON: $e');
+          debugPrint('📄 Response body: ${response.body}');
+
+          throw Exception(
+            'El servidor devolvió una respuesta que no se puede procesar.\n\n'
+            'Respuesta del servidor: "${response.body}"\n'
+            'Error de parsing: $e\n\n'
+            'El backend debe devolver JSON válido con el IdInf generado.',
+          );
+        }
+      } else {
+        debugPrint('❌ Error del servidor: ${response.statusCode}');
+        throw Exception(
+          'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
+        );
+      }
+    } on SocketException catch (e) {
+      debugPrint('🔌 Error de conexión al guardar informe: $e');
+      throw Exception(
+        'Sin conexión al servidor. Verifica tu conexión a internet.',
+      );
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP al guardar informe: $e');
+      throw Exception('Error de protocolo HTTP: $e');
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato al guardar informe: $e');
+      throw Exception('El servidor devolvió datos en formato incorrecto');
+    } catch (e) {
+      debugPrint('💥 Error no manejado al guardar informe: $e');
+      rethrow;
+    }
+  }
+
+  /// Guardar detalle de informe de rendición
+  /// [informeDetalleData] - Map con los datos del detalle del informe a guardar
+  /// Retorna true si se guardó exitosamente, false en caso contrario
+  Future<bool> saveRendicionInformeDetalle(
+    Map<String, dynamic> informeDetalleData,
+  ) async {
+    debugPrint('🚀 Guardando detalle de informe de rendición...');
+    debugPrint('📍 URL: $baseUrl/saveupdate/saverendicioninforme_detalle');
+    debugPrint('📦 Datos a enviar: $informeDetalleData');
+
+    try {
+      // Diagnóstico de conectividad en modo debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      final response = await client
+          .post(
+            Uri.parse('$baseUrl/saveupdate/saverendicioninforme_detalle'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Accept': 'application/json',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+            },
+            body: json.encode([informeDetalleData]),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      debugPrint(
+        '📊 Respuesta guardar detalle informe - Status: ${response.statusCode}',
+      );
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Verificar si la respuesta contiene errores
+        if (response.body.contains('Error') ||
+            response.body.contains('error')) {
+          debugPrint('❌ Error en respuesta del servidor: ${response.body}');
+          throw Exception('Error del servidor: ${response.body}');
+        }
+
+        debugPrint('✅ Detalle de informe de rendición guardado exitosamente');
+        return true;
+      } else {
+        debugPrint('❌ Error del servidor: ${response.statusCode}');
+        throw Exception(
+          'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
+        );
+      }
+    } on SocketException catch (e) {
+      debugPrint('🔌 Error de conexión al guardar detalle informe: $e');
+      throw Exception(
+        'Sin conexión al servidor. Verifica tu conexión a internet.',
+      );
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP al guardar detalle informe: $e');
+      throw Exception('Error de protocolo HTTP: $e');
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato al guardar detalle informe: $e');
+      throw Exception('El servidor devolvió datos en formato incorrecto');
+    } catch (e) {
+      if (e.toString().contains('Sin conexión') ||
+          e.toString().contains('Error del servidor') ||
+          e.toString().contains('Respuesta vacía') ||
+          e.toString().contains('Error al procesar')) {
+        rethrow;
+      }
+      debugPrint('💥 Error no manejado al guardar detalle informe: $e');
+      throw Exception('Error inesperado al guardar detalle informe: $e');
     }
   }
 

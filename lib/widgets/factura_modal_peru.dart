@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
@@ -303,31 +304,88 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
       );
 
       if (selectedOption != null) {
-        if (selectedOption == 'camera') {
-          // Tomar foto con la cámara
+        if (selectedOption == 'camera' || selectedOption == 'gallery') {
+          // Tomar foto con la cámara o galería
           final XFile? image = await _picker.pickImage(
-            source: ImageSource.camera,
+            source: selectedOption == 'camera'
+                ? ImageSource.camera
+                : ImageSource.gallery,
             imageQuality: 85,
           );
           if (image != null) {
+            File file = File(image.path);
+            int fileSize = await file.length();
+            const int maxSize = 1024 * 1024; // 1MB en bytes
+            int quality = 85;
+            // Si la imagen pesa más de 1MB, intentar comprimirla
+            if (fileSize > maxSize) {
+              try {
+                // Usar flutter_image_compress para comprimir
+                // Importar si no está: import 'package:flutter_image_compress/flutter_image_compress.dart';
+                final targetPath = image.path
+                    .replaceFirst('.jpg', '_compressed.jpg')
+                    .replaceFirst('.jpeg', '_compressed.jpeg');
+                List<int> compressedBytes = await file.readAsBytes();
+                // bool compressed = false; // Ya no se usa
+                while (fileSize > maxSize && quality > 10) {
+                  final result = await FlutterImageCompress.compressWithFile(
+                    file.absolute.path,
+                    quality: quality,
+                    format: CompressFormat.jpeg,
+                    minWidth: 800,
+                    minHeight: 800,
+                  );
+                  if (result != null) {
+                    compressedBytes = result;
+                    fileSize = compressedBytes.length;
+                  }
+                  quality -= 10;
+                }
+                if (fileSize > maxSize) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'No se pudo comprimir la imagen a menos de 1MB. Por favor, seleccione una imagen más liviana.',
+                        ),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                  setState(() {
+                    _selectedImage = null;
+                    _selectedFile = null;
+                    _selectedFileType = null;
+                    _selectedFileName = null;
+                  });
+                  return;
+                }
+                // Guardar la imagen comprimida en un archivo temporal
+                final compressedFile = await File(
+                  targetPath,
+                ).writeAsBytes(compressedBytes);
+                file = compressedFile;
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error al comprimir la imagen: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                setState(() {
+                  _selectedImage = null;
+                  _selectedFile = null;
+                  _selectedFileType = null;
+                  _selectedFileName = null;
+                });
+                return;
+              }
+            }
             setState(() {
-              _selectedImage = File(image.path);
-              _selectedFile = File(image.path);
-              _selectedFileType = 'image';
-              _selectedFileName = image.name;
-            });
-            _validateForm();
-          }
-        } else if (selectedOption == 'gallery') {
-          // Seleccionar imagen de la galería
-          final XFile? image = await _picker.pickImage(
-            source: ImageSource.gallery,
-            imageQuality: 85,
-          );
-          if (image != null) {
-            setState(() {
-              _selectedImage = File(image.path);
-              _selectedFile = File(image.path);
+              _selectedImage = file;
+              _selectedFile = file;
               _selectedFileType = 'image';
               _selectedFileName = image.name;
             });

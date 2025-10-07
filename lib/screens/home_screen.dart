@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_modal.dart';
 import '../widgets/gastos_list.dart';
-import '../widgets/informes_list.dart';
+import '../widgets/informes_reporte_list.dart';
 import '../widgets/reportes_list.dart';
 import '../widgets/edit_reporte_modal.dart';
 import '../widgets/nuevo_informe_modal.dart';
 import '../widgets/tabbed_screen.dart';
 import '../models/gasto_model.dart';
+import '../models/reporte_informe_model.dart';
 import '../services/api_service.dart';
 import '../services/user_service.dart';
+import '../services/company_service.dart';
 import '../models/reporte_model.dart';
 import './informes/detalle_informe_screen.dart';
 
@@ -30,13 +32,14 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
 
   // Datos para informes y revisión
-  final List<Gasto> informes = [];
+  List<ReporteInforme> _informes = [];
   final List<Gasto> gastosRecepcion = [];
 
   @override
   void initState() {
     super.initState();
     _loadReportes();
+    _loadInformes();
   }
 
   @override
@@ -59,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
         id: '1',
         idrend: '1',
         user: UserService().currentUserCode,
+        ruc: CompanyService().companyRuc,
       );
       if (!mounted) return;
 
@@ -91,6 +95,51 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadInformes() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final informes = await _apiService.getReportesRendicionInforme(
+        id: '1',
+        idrend: '1',
+        user: UserService().currentUserCode,
+        ruc: CompanyService().companyRuc,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _informes = informes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Mostrar error en SnackBar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar informes: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Reintentar',
+              textColor: Colors.white,
+              onPressed: _loadInformes,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   // ========== MÉTODOS REUTILIZABLES ==========
 
   void _mostrarEditarPerfil(BuildContext context) {
@@ -114,20 +163,20 @@ class _HomeScreenState extends State<HomeScreen> {
     await Future.delayed(const Duration(seconds: 2));
   }
 
-  void _actualizarInforme(Gasto informeActualizado) {
+  void _actualizarInforme(ReporteInforme informeActualizado) {
     setState(() {
-      final index = informes.indexWhere(
-        (i) => i.titulo == informeActualizado.titulo,
+      final index = _informes.indexWhere(
+        (i) => i.idInf == informeActualizado.idInf,
       );
       if (index != -1) {
-        informes[index] = informeActualizado;
+        _informes[index] = informeActualizado;
       }
     });
   }
 
-  void _eliminarInforme(Gasto informe) {
+  void _eliminarInforme(ReporteInforme informe) {
     setState(() {
-      informes.remove(informe);
+      _informes.remove(informe);
     });
   }
 
@@ -174,25 +223,27 @@ class _HomeScreenState extends State<HomeScreen> {
         tabLabels: const ["Todos", "Borrador"],
         tabColors: const [Colors.indigo, Colors.indigo],
         tabViews: [
-          InformesList(
-            informes: informes,
+          InformesReporteList(
+            informes: _informes,
             onInformeUpdated: _actualizarInforme,
             onInformeDeleted: _eliminarInforme,
             showEmptyStateButton: true,
             onEmptyStateButtonPressed: _agregarInforme,
+            onRefresh: _loadInformes,
           ),
-          InformesList(
-            informes: informes.where((i) => i.estado == "Borrador").toList(),
+          InformesReporteList(
+            informes: _informes.where((i) => i.estado == "Borrador").toList(),
             onInformeUpdated: _actualizarInforme,
             onInformeDeleted: _eliminarInforme,
             showEmptyStateButton: false,
+            onRefresh: _loadInformes,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPantallaRecepcion() {
+  Widget _buildPantallaRevision() {
     return Scaffold(
       appBar: CustomAppBar(
         hintText: "Buscar en Revisión...",
@@ -248,7 +299,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       builder: (BuildContext context) => NuevoInformeModal(
         onInformeCreated: (nuevoInforme) {
-          setState(() => informes.add(nuevoInforme));
+          // Después de crear el informe, recargamos la lista
+          _loadInformes();
           _mostrarSnackInformeCreado(nuevoInforme);
         },
         onCancel: () {
@@ -288,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> pages = [
       _buildPantallaInicio(), // 0 - Gastos
       _buildPantallaInformes(), // 1 - Informes
-      _buildPantallaRecepcion(), // 2 - Revisión
+      _buildPantallaRevision(), // 2 - Revisión
       _buildPantallaConfiguracion(), // 3 - Config
     ];
 

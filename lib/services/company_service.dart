@@ -1,10 +1,11 @@
+import 'package:flutter/material.dart';
 import '../models/user_company.dart';
 
 /// Servicio singleton para gestionar la empresa seleccionada por el usuario
 ///
 /// Este servicio mantiene la empresa activa durante toda la sesión
 /// y permite acceder a ella desde cualquier parte de la aplicación.
-class CompanyService {
+class CompanyService extends ChangeNotifier {
   static final CompanyService _instance = CompanyService._internal();
 
   /// Factory constructor para retornar la misma instancia (singleton)
@@ -50,6 +51,7 @@ class CompanyService {
     print('📍 Sucursal: ${company.sucursal}');
     print('🏷️ Tipo gasto: ${company.tipogasto}');
     print('👤 Consumidor: ${company.consumidor}');
+    notifyListeners();
   }
 
   /// Limpiar la empresa seleccionada (útil para logout)
@@ -58,6 +60,7 @@ class CompanyService {
       '🧹 Limpiando empresa seleccionada: ${_currentCompany?.empresa ?? 'ninguna'}',
     );
     _currentCompany = null;
+    notifyListeners();
   }
 
   /// Obtener información completa de la empresa como Map

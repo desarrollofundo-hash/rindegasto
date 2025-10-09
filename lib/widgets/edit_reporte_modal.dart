@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/reporte_model.dart';
 import '../models/categoria_model.dart';
 import '../models/dropdown_option.dart';
@@ -519,12 +520,58 @@ class _EditReporteModalState extends State<EditReporteModal> {
     super.dispose();
   }
 
+  /// Convertir imagen a base64
+
+  Future<String> _convertImageToBase64(File imageFile) async {
+    final bytes = await imageFile.readAsBytes();
+    return base64Encode(bytes);
+  }
+
   /// Seleccionar imagen desde la cámara
   Future<void> _pickImage() async {
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Seleccionar'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Tomar foto'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickFromCamera();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Galería'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickFromGallery();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf),
+                title: const Text('PDF'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickPDFFile();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickFromCamera() async {
     try {
       setState(() => _isLoading = true);
 
-      // Verificar si el picker está disponible
       final XFile? image = await _picker.pickImage(
         source: ImageSource.camera,
         imageQuality: 85,
@@ -534,11 +581,9 @@ class _EditReporteModalState extends State<EditReporteModal> {
 
       if (image != null && mounted) {
         final file = File(image.path);
-
-        // Verificar que el archivo existe
         if (await file.exists()) {
           setState(() => _selectedImage = file);
-          _validateForm(); // Validar formulario después de agregar imagen
+          _validateForm();
           print('📷 Imagen capturada exitosamente: ${file.path}');
         } else {
           throw Exception('El archivo de imagen no se pudo crear');
@@ -562,6 +607,84 @@ class _EditReporteModalState extends State<EditReporteModal> {
     }
   }
 
+  Future<void> _pickFromGallery() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (image != null && mounted) {
+        final file = File(image.path);
+        if (await file.exists()) {
+          setState(() => _selectedImage = file);
+          _validateForm();
+          print('🖼️ Imagen seleccionada de galería: ${file.path}');
+        } else {
+          throw Exception('El archivo de imagen no se pudo crear');
+        }
+      }
+    } catch (e) {
+      print('🔴 Error al seleccionar imagen de galería: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al seleccionar imagen: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _pickPDFFile() async {
+    try {
+      setState(() => _isLoading = true);
+
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result != null && mounted) {
+        final file = File(result.files.single.path!);
+        if (await file.exists()) {
+          setState(
+            () => _selectedImage = file,
+          ); // Usamos _selectedImage para mantener compatibilidad
+          _validateForm();
+          print('📄 PDF seleccionado: ${file.path}');
+        } else {
+          throw Exception('El archivo PDF no se pudo acceder');
+        }
+      }
+    } catch (e) {
+      print('🔴 Error al seleccionar PDF: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al seleccionar PDF: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   /// Mostrar alerta en medio de la pantalla con mensaje del servidor
   void _showServerAlert(String message) {
     showDialog(
@@ -571,7 +694,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         return Dialog(
           backgroundColor: Colors.transparent,
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             margin: const EdgeInsets.symmetric(horizontal: 40),
             decoration: BoxDecoration(
               color: Colors.red,
@@ -629,14 +752,19 @@ class _EditReporteModalState extends State<EditReporteModal> {
     }
   }
 
+  /// Verificar si un archivo es PDF basado en su extensión
+  bool _isPdfFile(String filePath) {
+    return filePath.toLowerCase().endsWith('.pdf');
+  }
+
   /// Construir la sección de imagen/evidencia
   Widget _buildImageSection() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 8),
       child: Card(
         elevation: 2,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -661,7 +789,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
                     )
                   else
                     ElevatedButton.icon(
-                      onPressed: _pickImage,
+                      onPressed: _isEditMode ? _pickImage : null,
                       icon: Icon(
                         (_selectedImage == null &&
                                 (_apiEvidencia == null ||
@@ -673,18 +801,18 @@ class _EditReporteModalState extends State<EditReporteModal> {
                         (_selectedImage == null &&
                                 (_apiEvidencia == null ||
                                     _apiEvidencia!.isEmpty))
-                            ? 'Agregar'
-                            : 'Cambiar',
+                            ? 'Seleccionar'
+                            : 'Cambiar archivo',
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                        backgroundColor: _isEditMode ? Colors.red : Colors.grey,
                         foregroundColor: Colors.white,
                       ),
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
-              // Mostrar imagen: prioritiza imagen local nueva, luego evidencia de API
+              const SizedBox(height: 8),
+              // Mostrar archivo: puede ser imagen o PDF
               if (_selectedImage != null)
                 Container(
                   height: 200,
@@ -695,7 +823,30 @@ class _EditReporteModalState extends State<EditReporteModal> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.file(_selectedImage!, fit: BoxFit.cover),
+                    child: _isPdfFile(_selectedImage!.path)
+                        ? Container(
+                            color: Colors.grey.shade100,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.picture_as_pdf,
+                                  size: 48,
+                                  color: Colors.red,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'PDF: ${_selectedImage!.path.split('/').last}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          )
+                        : Image.file(_selectedImage!, fit: BoxFit.cover),
                   ),
                 )
               else if (_apiEvidencia != null && _apiEvidencia!.isNotEmpty)
@@ -887,32 +1038,37 @@ class _EditReporteModalState extends State<EditReporteModal> {
       items = const [];
     }
 
-    return DropdownButtonFormField<String>(
-      decoration: const InputDecoration(
-        labelText: 'Categoría *',
-        prefixIcon: Icon(Icons.category),
-        border: OutlineInputBorder(),
+    return AbsorbPointer(
+      absorbing: !_isEditMode,
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(
+          labelText: 'Categoría *',
+          prefixIcon: Icon(Icons.category),
+          border: OutlineInputBorder(),
+          filled: true,
+          fillColor: _isEditMode ? Colors.white : Colors.grey[100],
+        ),
+        value:
+            _categoriaController.text.isNotEmpty &&
+                items.any((item) => item.value == _categoriaController.text)
+            ? _categoriaController.text
+            : null,
+        items: items,
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Categoría es obligatoria';
+          }
+          return null;
+        },
+        onChanged: (value) {
+          if (value != null) {
+            setState(() {
+              _categoriaController.text = value;
+            });
+            _validateForm(); // Validar cuando cambie la categoría
+          }
+        },
       ),
-      value:
-          _categoriaController.text.isNotEmpty &&
-              items.any((item) => item.value == _categoriaController.text)
-          ? _categoriaController.text
-          : null,
-      items: items,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Categoría es obligatoria';
-        }
-        return null;
-      },
-      onChanged: (value) {
-        if (value != null) {
-          setState(() {
-            _categoriaController.text = value;
-          });
-          _validateForm(); // Validar cuando cambie la categoría
-        }
-      },
     );
   }
 
@@ -979,41 +1135,46 @@ class _EditReporteModalState extends State<EditReporteModal> {
             ),
           )
         else
-          DropdownButtonFormField<String>(
-            decoration: const InputDecoration(
-              labelText: 'Tipo de Gasto *',
-              prefixIcon: Icon(Icons.attach_money),
-              border: OutlineInputBorder(),
+          AbsorbPointer(
+            absorbing: !_isEditMode,
+            child: DropdownButtonFormField<String>(
+              decoration: InputDecoration(
+                labelText: 'Tipo de Gasto *',
+                prefixIcon: Icon(Icons.attach_money),
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: _isEditMode ? Colors.white : Colors.grey[100],
+              ),
+              value:
+                  _tipoGastoController.text.isNotEmpty &&
+                      _tiposGasto.any(
+                        (tipo) => tipo.value == _tipoGastoController.text,
+                      )
+                  ? _tipoGastoController.text
+                  : null,
+              items: _tiposGasto
+                  .map(
+                    (tipo) => DropdownMenuItem<String>(
+                      value: tipo.value,
+                      child: Text(tipo.value),
+                    ),
+                  )
+                  .toList(),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Tipo de gasto es obligatorio';
+                }
+                return null;
+              },
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _tipoGastoController.text = value;
+                  });
+                  _validateForm(); // Validar cuando cambie el tipo de gasto
+                }
+              },
             ),
-            value:
-                _tipoGastoController.text.isNotEmpty &&
-                    _tiposGasto.any(
-                      (tipo) => tipo.value == _tipoGastoController.text,
-                    )
-                ? _tipoGastoController.text
-                : null,
-            items: _tiposGasto
-                .map(
-                  (tipo) => DropdownMenuItem<String>(
-                    value: tipo.value,
-                    child: Text(tipo.value),
-                  ),
-                )
-                .toList(),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Tipo de gasto es obligatorio';
-              }
-              return null;
-            },
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _tipoGastoController.text = value;
-                });
-                _validateForm(); // Validar cuando cambie el tipo de gasto
-              }
-            },
           ),
       ],
     );
@@ -1208,13 +1369,23 @@ class _EditReporteModalState extends State<EditReporteModal> {
       await _apiService.saveupdateRendicionGasto(facturaData);
 
       //idRend del primer API
+      final evidenciaString = _selectedImage != null
+          ? await _convertImageToBase64(_selectedImage!)
+          : (_apiEvidencia ?? "");
+
+      print('📸 Enviando evidencia:');
+      print('📸 _selectedImage != null: ${_selectedImage != null}');
+      print('📸 _apiEvidencia: ${_apiEvidencia ?? "null"}');
+      print('📸 evidenciaString length: ${evidenciaString.length}');
+      print(
+        '📸 evidenciaString preview: ${evidenciaString.substring(0, evidenciaString.length > 50 ? 50 : evidenciaString.length)}...',
+      );
+
       final facturaDataEvidencia = {
         "idRend": widget
             .reporte
             .idrend, // ✅ Usar el ID autogenerado del API principal
-        "evidencia":
-            _apiEvidencia ??
-            "", // Si no hay evidencia nueva, enviar cadena vacía
+        "evidencia": evidenciaString,
         "obs": _notaController.text.length > 1000
             ? _notaController.text.substring(0, 1000)
             : _notaController.text,
@@ -1232,10 +1403,12 @@ class _EditReporteModalState extends State<EditReporteModal> {
         facturaDataEvidencia,
       );
 
+      print('📸 saveRendicionGastoEvidencia result: $successEvidencia');
+
       if (successEvidencia && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ FACTURA ACTUALIZADO'),
+            content: Text('✅ FACTURA ACTUALIZADA'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -1423,7 +1596,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         // Primera fila: RUC y Tipo de Comprobante
         _buildTextField(
           _rucController,
-          'RUC *',
+          'RUC ',
           Icons.business,
           TextInputType.number,
           isRequired: true,
@@ -1432,7 +1605,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         const SizedBox(height: 16),
         _buildTextField(
           _tipoComprobanteController,
-          'Tipo Comprobante *',
+          'Tipo Comprobante ',
           Icons.receipt_long,
           TextInputType.text,
           isRequired: true,
@@ -1443,7 +1616,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         // Segunda fila: Serie y Número
         _buildTextField(
           _serieController,
-          'Serie *',
+          'Serie ',
           Icons.tag,
           TextInputType.text,
           isRequired: true,
@@ -1452,7 +1625,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         const SizedBox(height: 16),
         _buildTextField(
           _numeroController,
-          'Número *',
+          'Número ',
           Icons.confirmation_number,
           TextInputType.number,
           isRequired: true,
@@ -1471,7 +1644,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         const SizedBox(height: 16),
         _buildTextField(
           _fechaEmisionController,
-          'Fecha Emisión *',
+          'Fecha Emisión ',
           Icons.calendar_today,
           TextInputType.datetime,
           isRequired: true,
@@ -1482,7 +1655,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         // Cuarta fila: Total y Moneda
         _buildTextField(
           _totalController,
-          'Total *',
+          'Total ',
           Icons.attach_money,
           TextInputType.numberWithOptions(decimal: true),
           isRequired: true,
@@ -1491,7 +1664,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         const SizedBox(height: 16),
         _buildTextField(
           _monedaController,
-          'Moneda',
+          'Moneda *',
           Icons.monetization_on,
           TextInputType.text,
           readOnly: true,
@@ -1501,7 +1674,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         // Quinta fila: RUC Cliente (solo lectura)
         _buildTextField(
           _rucClienteController,
-          'RUC Cliente',
+          'RUC Cliente * ',
           Icons.person,
           TextInputType.number,
           readOnly: true,
@@ -1955,7 +2128,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
   /// Construir los botones de acción
   Widget _buildActionButtons() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 50),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         border: Border(top: BorderSide(color: Colors.grey.shade300)),
@@ -1965,8 +2138,8 @@ class _EditReporteModalState extends State<EditReporteModal> {
           // Mensaje de campos obligatorios
           if (!_isFormValid)
             Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(6),
+              margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
                 color: Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(8),
@@ -1975,10 +2148,10 @@ class _EditReporteModalState extends State<EditReporteModal> {
               child: Row(
                 children: [
                   Icon(Icons.warning, color: Colors.orange.shade600),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 14),
                   const Expanded(
                     child: Text(
-                      'Por favor complete todos los campos obligatorios (*) e incluya una imagen',
+                      'Por favor complete todos los campos ',
                       style: TextStyle(
                         color: Colors.orange,
                         fontWeight: FontWeight.w500,
@@ -1998,11 +2171,11 @@ class _EditReporteModalState extends State<EditReporteModal> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 244, 54, 54),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 4),
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: _isLoading || !_isFormValid
@@ -2010,22 +2183,19 @@ class _EditReporteModalState extends State<EditReporteModal> {
                       : _updateFacturaAPI,
                   icon: _isLoading
                       ? const SizedBox(
-                          width: 16,
-                          height: 16,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
                               Colors.white,
                             ),
                           ),
                         )
-                      : const Icon(Icons.save),
+                      : const Icon(Icons.save_rounded),
                   label: Text(
                     _isLoading
                         ? 'Guardando...'
                         : _isFormValid
                         ? 'Guardar Reporte'
-                        : 'Complete los campos obligatorios',
+                        : 'Completar ',
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isFormValid
@@ -2034,7 +2204,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: Colors.grey[300],
                     disabledForegroundColor: Colors.grey[600],
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
                   ),
                 ),
               ),

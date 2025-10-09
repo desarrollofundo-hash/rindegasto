@@ -37,6 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
             return CompanySelectionModal(
               userName: userData['usenam'] ?? 'Usuario',
               userId: int.tryParse(userData['usecod'] ?? '0') ?? 0,
+              shouldNavigateToHome: true,
             );
           },
         );

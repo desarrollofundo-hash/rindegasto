@@ -7,11 +7,13 @@ import '../models/user_company.dart';
 class CompanySelectionModal extends StatefulWidget {
   final String userName;
   final int userId; // Agregar userId para la API
+  final bool shouldNavigateToHome;
 
   const CompanySelectionModal({
     super.key,
     required this.userName,
     required this.userId,
+    this.shouldNavigateToHome = true,
   });
 
   @override
@@ -79,10 +81,13 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
       CompanyService().setCurrentCompany(selectedUserCompany);
 
       Navigator.of(context).pop(); // Cerrar el modal
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+
+      if (widget.shouldNavigateToHome) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      }
 
       // Mostrar mensaje de confirmación con más detalles
       ScaffoldMessenger.of(context).showSnackBar(

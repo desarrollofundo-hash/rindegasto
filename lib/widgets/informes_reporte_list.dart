@@ -1,3 +1,4 @@
+import 'package:flu2/models/auditioria_model.dart';
 import 'package:flu2/widgets/empty_state.dart';
 import 'package:flu2/widgets/informe_detalle_modal.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +19,7 @@ class InformesReporteList extends StatelessWidget {
     required this.onInformeDeleted,
     this.showEmptyStateButton = true,
     this.onEmptyStateButtonPressed,
-    this.onRefresh,
+    this.onRefresh, required List<AuditoriaModel> auditoria,
   });
 
   @override

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_modal.dart';
-import '../widgets/gastos_list.dart';
 import '../widgets/informes_reporte_list.dart';
 import '../widgets/reportes_list.dart';
 import '../widgets/edit_reporte_modal.dart';
@@ -159,10 +158,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _refreshConDelay() async {
-    await Future.delayed(const Duration(seconds: 2));
-  }
-
   void _actualizarInforme(ReporteInforme informeActualizado) {
     setState(() {
       final index = _informes.indexWhere(
@@ -225,6 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
         tabViews: [
           InformesReporteList(
             informes: _informes,
+            auditoria: [],
             onInformeUpdated: _actualizarInforme,
             onInformeDeleted: _eliminarInforme,
             showEmptyStateButton: true,
@@ -233,6 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           InformesReporteList(
             informes: _informes.where((i) => i.estado == "Borrador").toList(),
+            auditoria: [],
             onInformeUpdated: _actualizarInforme,
             onInformeDeleted: _eliminarInforme,
             showEmptyStateButton: false,
@@ -252,21 +249,16 @@ class _HomeScreenState extends State<HomeScreen> {
         onNotificationPressed: _decrementarNotificaciones,
       ),
       body: TabbedScreen(
-        tabLabels: const ["Todos", "Borrador", "Transporte"],
-        tabColors: const [Colors.green, Colors.green, Colors.green],
+        tabLabels: const ["Todos"],
+        tabColors: const [Colors.green],
         tabViews: [
-          GastosList(gastos: gastosRecepcion, onRefresh: _refreshConDelay),
-          GastosList(
-            gastos: gastosRecepcion
-                .where((g) => g.estado == "Borrador")
-                .toList(),
-            onRefresh: _refreshConDelay,
-          ),
-          GastosList(
-            gastos: gastosRecepcion
-                .where((g) => g.categoria == "Transporte")
-                .toList(),
-            onRefresh: _refreshConDelay,
+          InformesReporteList(
+            informes: _informes,
+            auditoria: [],
+            onInformeUpdated: _actualizarInforme,
+            onInformeDeleted: _eliminarInforme,
+            showEmptyStateButton: false,
+            onRefresh: _loadInformes,
           ),
         ],
       ),
@@ -282,21 +274,16 @@ class _HomeScreenState extends State<HomeScreen> {
         onNotificationPressed: _decrementarNotificaciones,
       ),
       body: TabbedScreen(
-        tabLabels: const ["Todos", "Borrador", "Transporte"],
-        tabColors: const [Colors.green, Colors.green, Colors.green],
+        tabLabels: const ["Todos"],
+        tabColors: const [Colors.green],
         tabViews: [
-          GastosList(gastos: gastosRecepcion, onRefresh: _refreshConDelay),
-          GastosList(
-            gastos: gastosRecepcion
-                .where((g) => g.estado == "Borrador")
-                .toList(),
-            onRefresh: _refreshConDelay,
-          ),
-          GastosList(
-            gastos: gastosRecepcion
-                .where((g) => g.categoria == "Transporte")
-                .toList(),
-            onRefresh: _refreshConDelay,
+          InformesReporteList(
+            informes: _informes,
+            auditoria: [],
+            onInformeUpdated: _actualizarInforme,
+            onInformeDeleted: _eliminarInforme,
+            showEmptyStateButton: false,
+            onRefresh: _loadInformes,
           ),
         ],
       ),

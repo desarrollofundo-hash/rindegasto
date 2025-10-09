@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../controllers/profile_modal_controller.dart';
+import 'company_selection_modal.dart';
 
 class ProfileModalWidgets {
   static Widget buildHeaderWithCloseButton(
@@ -390,6 +391,7 @@ class ProfileModalWidgets {
     ProfileModalController controller,
     VoidCallback onLogout,
     VoidCallback onCancel,
+    VoidCallback onChangeCompany,
   ) {
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 200),
@@ -411,6 +413,30 @@ class ProfileModalWidgets {
           ),
           child: Column(
             children: [
+              // Botón de cambiar empresa
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                    shadowColor: Colors.blue.withOpacity(0.3),
+                  ),
+                  onPressed: onChangeCompany,
+                  icon: const Icon(Icons.business, size: 20),
+                  label: const Text(
+                    "Cambiar Empresa",
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               // Botón de cerrar sesión
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),

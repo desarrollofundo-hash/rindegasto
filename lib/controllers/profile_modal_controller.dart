@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/user_service.dart';
 import '../services/company_service.dart';
+import '../widgets/company_selection_modal.dart';
 
 class ProfileModalController with ChangeNotifier {
   // Animation Controller
@@ -186,6 +187,24 @@ class ProfileModalController with ChangeNotifier {
         context,
       ).pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
     }
+  }
+
+  void onChangeCompany(BuildContext context) {
+    final userService = UserService();
+    final userId = int.tryParse(userService.currentUserCode) ?? 0;
+    final userName = userService.currentUserName;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return CompanySelectionModal(
+          userName: userName,
+          userId: userId,
+          shouldNavigateToHome: false,
+        );
+      },
+    );
   }
 
   void dispose() {

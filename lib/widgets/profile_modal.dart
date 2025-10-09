@@ -130,6 +130,7 @@ class _ProfileModalState extends State<ProfileModal>
                                 _controller,
                                 () => _controller.logout(context),
                                 () => _controller.closeModal(context),
+                                () => _controller.onChangeCompany(context),
                               ),
                             ],
                           ),

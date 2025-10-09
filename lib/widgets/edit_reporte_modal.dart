@@ -42,15 +42,20 @@ class _EditReporteModalState extends State<EditReporteModal> {
 
   // Variables para manejo de imagen
   File? _selectedImage;
+  File?
+  _selectedFile; // Archivo seleccionado (si se implementa selección de archivos)
+  File? _selectedFileType; // Tipo de archivo seleccionado (si se implementa)
+  File? _selectedFileName; // Nombre del archivo seleccionado (si se implementa)
+
   String? _apiEvidencia; // URL de la evidencia que viene de la API
   final ImagePicker _picker = ImagePicker();
+  final ApiService _apiService = ApiService();
 
   bool _isLoading = false;
   bool _isEditMode = false;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   // Servicios para cargar datos
-  final ApiService _apiService = ApiService();
 
   // Listas para dropdowns
   List<DropdownOption> _politicas = [];
@@ -627,7 +632,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
   /// Construir la sección de imagen/evidencia
   Widget _buildImageSection() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       child: Card(
         elevation: 2,
         child: Padding(
@@ -1044,32 +1049,201 @@ class _EditReporteModalState extends State<EditReporteModal> {
     );
   }
 
-  Future<void> _saveReporte() async {
-    if (!_formKey.currentState!.validate() || !_isFormValid) {
+  /// Guardar factura mediante API
+  Future<void> _updateFacturaAPI() async {
+    // Validar campos obligatorios antes de continuar
+    if (!_isFormValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Por favor complete todos los campos obligatorios'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    // 🔍 VALIDACIÓN: RUC del cliente escaneado debe coincidir con empresa seleccionada
+    final rucClienteEscaneado = _rucClienteController.text.trim();
+    final rucEmpresaSeleccionada = CompanyService().companyRuc;
+
+    if (rucClienteEscaneado.isNotEmpty && rucEmpresaSeleccionada.isNotEmpty) {
+      if (rucClienteEscaneado != rucEmpresaSeleccionada) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '❌ RUC del cliente no coincide con la empresa seleccionada',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text('RUC cliente escaneado: $rucClienteEscaneado'),
+                Text('RUC empresa: $rucEmpresaSeleccionada'),
+                Text('Empresa: ${CompanyService().currentUserCompany}'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+        return;
+      }
+    }
 
     try {
-      print('💾 Iniciando guardado del reporte...');
+      if (mounted) setState(() => _isLoading = true);
 
-      // Simular guardado (aquí se implementaría la llamada real a la API)
-      await Future.delayed(const Duration(milliseconds: 2000));
+      // Formatear fecha para SQL Server (solo fecha, sin hora)
+      String fechaSQL = "";
+      if (_fechaEmisionController.text.isNotEmpty) {
+        try {
+          // Intentar parsear la fecha del QR
+          final fecha = DateTime.parse(_fechaEmisionController.text);
+          fechaSQL =
+              "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
+        } catch (e) {
+          // Si falla, usar fecha actual
+          final fecha = DateTime.now();
+          fechaSQL =
+              "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
+        }
+      } else {
+        final fecha = DateTime.now();
+        fechaSQL =
+            "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
+      }
 
-      if (mounted) {
+      // 📋 DATOS PRINCIPALES DE LA FACTURA
+      // Este objeto contiene toda la información principal de la factura
+      // que será enviada al API que debe generar el idRend automáticamente
+      final facturaData = {
+        "idRend":
+            widget.reporte.idrend, // Siempre 0 para que el API genere uno nuevo
+        "idUser": widget.reporte.iduser,
+        "dni": widget.reporte.dni,
+        "politica": _politicaController.text.length > 80
+            ? _politicaController.text.substring(0, 80)
+            : _politicaController.text,
+        "categoria": _categoriaController.text.isEmpty
+            ? "GENERAL"
+            : (_categoriaController.text.length > 80
+                  ? _categoriaController.text.substring(0, 80)
+                  : _categoriaController.text),
+
+        "tipoGasto": _tipoGastoController.text.isEmpty
+            ? "GASTO GENERAL"
+            : (_tipoGastoController.text.length > 80
+                  ? _tipoGastoController.text.substring(0, 80)
+                  : _tipoGastoController.text),
+        "ruc": _rucController.text.isEmpty
+            ? ""
+            : (_rucController.text.length > 80
+                  ? _rucController.text.substring(0, 80)
+                  : _rucController.text),
+        "proveedor": "",
+        "tipoCombrobante": _tipoComprobanteController.text.isEmpty
+            ? ""
+            : (_tipoComprobanteController.text.length > 180
+                  ? _tipoComprobanteController.text.substring(0, 180)
+                  : _tipoComprobanteController.text),
+        "serie": _serieController.text.isEmpty
+            ? ""
+            : (_serieController.text.length > 80
+                  ? _serieController.text.substring(0, 80)
+                  : _serieController.text),
+        "numero": _numeroController.text.isEmpty
+            ? ""
+            : (_numeroController.text.length > 80
+                  ? _numeroController.text.substring(0, 80)
+                  : _numeroController.text),
+        "igv": double.tryParse(_igvController.text) ?? 0.0,
+        "fecha": fechaSQL,
+        "total": double.tryParse(_totalController.text) ?? 0.0,
+        "moneda": _monedaController.text.isEmpty
+            ? "PEN"
+            : (_monedaController.text.length > 80
+                  ? _monedaController.text.substring(0, 80)
+                  : _monedaController.text),
+        "rucCliente": _rucClienteController.text.isEmpty
+            ? ""
+            : (_rucClienteController.text.length > 80
+                  ? _rucClienteController.text.substring(0, 80)
+                  : _rucClienteController.text),
+        "desEmp": CompanyService().currentCompany?.empresa ?? '',
+        "desSed": "",
+        "idCuenta": "",
+        "consumidor": "",
+        "regimen": "",
+        "destino": "",
+        "glosa": "",
+        "motivoViaje": "",
+        "lugarOrigen": "",
+        "lugarDestino": "",
+        "tipoMovilidad": "",
+        "obs": _notaController.text.length > 1000
+            ? _notaController.text.substring(0, 1000)
+            : _notaController.text,
+        "estado": "S", // Solo 1 carácter como requiere la BD
+        "fecCre": DateTime.now().toIso8601String(),
+        "useReg": widget.reporte.iduser, // Campo obligatorio
+        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
+        "fecEdit": DateTime.now().toIso8601String(),
+        "useEdit": widget.reporte.iduser,
+        "useElim": 0,
+      };
+
+      // 🚨 IMPORTANTE: Si saverendiciongastoevidencia es el que GENERA el idRend,
+      // entonces necesitamos cambiar el orden de los APIs
+
+      // ✅ PRIMER API: Guardar datos principales de la factura (genera idRend automáticamente)
+      // Nota: Verificar cuál endpoint realmente genera el idRend autoincrementable
+      await _apiService.saveupdateRendicionGasto(facturaData);
+
+      //idRend del primer API
+      final facturaDataEvidencia = {
+        "idRend": widget
+            .reporte
+            .idrend, // ✅ Usar el ID autogenerado del API principal
+        "evidencia":
+            _apiEvidencia ??
+            "", // Si no hay evidencia nueva, enviar cadena vacía
+        "obs": _notaController.text.length > 1000
+            ? _notaController.text.substring(0, 1000)
+            : _notaController.text,
+        "estado": "S", // Solo 1 carácter como requiere la BD
+        "fecCre": DateTime.now().toIso8601String(),
+        "useReg": widget.reporte.iduser, // Campo obligatorio
+        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
+        "fecEdit": DateTime.now().toIso8601String(),
+        "useEdit": widget.reporte.iduser,
+        "useElim": 0,
+      };
+
+      // Usar el nuevo servicio API para guardar la evidencia
+      final successEvidencia = await _apiService.saveRendicionGastoEvidencia(
+        facturaDataEvidencia,
+      );
+
+      if (successEvidencia && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Reporte actualizado exitosamente'),
+            content: Text('✅ FACTURA ACTUALIZADO'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
         );
 
-        // Cerrar el modal y navegar a la pantalla principal
+        // Cerrar el modal y navegar a la pantalla de gastos
         Navigator.of(context).pop(); // Cerrar modal
+        Navigator.of(context).pop(); // Cerrar pantalla QR si existe
 
         // Navegar a HomeScreen con índice 0 (pestaña de Gastos)
         Navigator.of(context).pushAndRemoveUntil(
@@ -1078,7 +1252,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         );
       }
     } catch (e) {
-      print('💥 Error al guardar: $e');
+      print('💥 Error capturado: $e');
       if (mounted) {
         // Extraer mensaje del servidor para mostrar en alerta
         final serverMessage = _extractServerMessage(e.toString());
@@ -1087,7 +1261,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
     } finally {
       print('🔄 Finalizando proceso...');
       if (mounted) {
-        setState(() => _isLoading = false);
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
@@ -1831,7 +2005,9 @@ class _EditReporteModalState extends State<EditReporteModal> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _isLoading || !_isFormValid ? null : _saveReporte,
+                  onPressed: _isLoading || !_isFormValid
+                      ? null
+                      : _updateFacturaAPI,
                   icon: _isLoading
                       ? const SizedBox(
                           width: 16,

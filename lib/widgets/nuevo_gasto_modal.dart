@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
 import '../models/dropdown_option.dart';
 import '../services/api_service.dart';
 import '../services/user_service.dart';
@@ -201,6 +205,54 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
     }
   }
 
+  /// Comprimir imagen si es mayor a 1MB
+  Future<File?> _compressImage(File file) async {
+    final fileSize = await file.length();
+    if (fileSize <= 1024 * 1024) {
+      return file; // No necesita compresión
+    }
+
+    final dir = await getTemporaryDirectory();
+    final targetPath =
+        '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    final result = await FlutterImageCompress.compressAndGetFile(
+      file.absolute.path,
+      targetPath,
+      quality: 85, // Ajusta la calidad según sea necesario
+      minWidth: 1024,
+      minHeight: 1024,
+    );
+
+    if (result != null) {
+      // Convertir XFile a File
+      return File(result.path);
+    }
+    return null;
+  }
+
+  /// Convertir imagen a PDF
+  Future<File?> _convertImageToPdf(File imageFile) async {
+    final pdf = pw.Document();
+    final image = pw.MemoryImage(imageFile.readAsBytesSync());
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Center(child: pw.Image(image));
+        },
+      ),
+    );
+
+    final output = await getTemporaryDirectory();
+    final file = File(
+      "${output.path}/${DateTime.now().millisecondsSinceEpoch}.pdf",
+    );
+    await file.writeAsBytes(await pdf.save());
+    return file;
+  }
+
   /// Seleccionar archivo (imagen o PDF)
   Future<void> _pickImage() async {
     try {
@@ -239,34 +291,26 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
       );
 
       if (selectedOption != null) {
+        XFile? image;
         if (selectedOption == 'camera') {
-          // Tomar foto con la cámara
-          final XFile? image = await _picker.pickImage(
-            source: ImageSource.camera,
-            imageQuality: 85,
-          );
-          if (image != null) {
-            setState(() {
-              _selectedImage = File(image.path);
-              _selectedFile = File(image.path);
-              _selectedFileType = 'image';
-              _selectedFileName = image.name;
-            });
-          }
+          image = await _picker.pickImage(source: ImageSource.camera);
         } else if (selectedOption == 'gallery') {
-          // Seleccionar imagen de la galería
-          final XFile? image = await _picker.pickImage(
-            source: ImageSource.gallery,
-            imageQuality: 85,
-          );
-          if (image != null) {
-            setState(() {
-              _selectedImage = File(image.path);
-              _selectedFile = File(image.path);
-              _selectedFileType = 'image';
-              _selectedFileName = image.name;
-            });
-          }
+          image = await _picker.pickImage(source: ImageSource.gallery);
+        }
+
+        if (image != null) {
+          File imageFile = File(image.path);
+          File? compressedFile = await _compressImage(imageFile);
+          File? pdfFile = await _convertImageToPdf(compressedFile ?? imageFile);
+
+          setState(() {
+            _selectedImage = null;
+            _selectedFile = pdfFile;
+            _selectedFileType = 'pdf';
+            _selectedFileName = image!.name.endsWith('.jpg')
+                ? '${image.name.substring(0, image.name.length - 4)}.pdf'
+                : '${image.name}.pdf';
+          });
         } else if (selectedOption == 'pdf') {
           // Seleccionar archivo PDF
           final result = await FilePicker.platform.pickFiles(

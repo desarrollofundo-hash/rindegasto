@@ -136,21 +136,16 @@ class _ReportesListState extends State<ReportesList> {
     // TODO: Implementar navegación específica según la política
     // Aquí puedes agregar la lógica de navegación que necesites
 
-    print('📍 Navegando con política: ${politica.value}');
-
     // Ejemplo de cómo podrías manejar diferentes políticas:
     switch (politica.value.toUpperCase()) {
       case 'GENERAL':
         // Navegar a pantalla de gasto general
-        print('→ Redirigiendo a pantalla de gasto general');
         break;
       case 'GASTOS DE MOVILIDAD':
         // Navegar a pantalla de gasto de movilidad
-        print('→ Redirigiendo a pantalla de gasto de movilidad');
         break;
       default:
         // Pantalla por defecto
-        print('→ Redirigiendo a pantalla de gasto por defecto');
         break;
     }
 
@@ -173,7 +168,7 @@ class _ReportesListState extends State<ReportesList> {
           _procesarFacturaConIA(result);
         } else {
           // Comportamiento original
-          ScaffoldMessenger.of(context).showSnackBar(
+          /*  ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('Documento escaneado exitosamente'),
               backgroundColor: Colors.green,
@@ -186,7 +181,7 @@ class _ReportesListState extends State<ReportesList> {
                 },
               ),
             ),
-          );
+          ); */
         }
       }
     } catch (e) {
@@ -348,10 +343,7 @@ class _ReportesListState extends State<ReportesList> {
                     action: SnackBarAction(
                       label: 'Abrir Modal',
                       textColor: Colors.white,
-                      onPressed: () {
-                        // TODO: Aquí puedes abrir el modal con los datos pre-llenados
-                        print('Datos para modal: $datos');
-                      },
+                      onPressed: () {},
                     ),
                   ),
                 );

@@ -28,6 +28,8 @@ dependencies:
   flutter_staggered_animations: ^1.1.1
   image_cropper: ^11.0.0
   flutter_image_compress: ^2.1.0
+  pdf: ^3.10.8
+  printing: ^5.11.1
 
 dev_dependencies:
   flutter_test:

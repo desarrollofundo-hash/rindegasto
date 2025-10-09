@@ -285,7 +285,6 @@ class ApiService {
     }
   }
 
-
   Future<List<ReporteInforme>> getReportesRendicionInforme_Detalle({
     required String idrend,
   }) async {
@@ -312,9 +311,9 @@ class ApiService {
       }
 
       // Construir la URL con los parámetros dinámicos
-      final uri = Uri.parse('$baseUrl/reporte/rendicioninforme_detalle').replace(
-        queryParameters: {'idrend': idrend},
-      );
+      final uri = Uri.parse(
+        '$baseUrl/reporte/rendicioninforme_detalle',
+      ).replace(queryParameters: {'idrend': idrend});
       /* 
       debugPrint('📡 Realizando petición HTTP GET...');
       debugPrint('🌍 URL final: $uri');
@@ -1916,6 +1915,84 @@ class ApiService {
       final response = await client
           .post(
             Uri.parse('$baseUrl/saveupdate/saverendicioninforme_detalle'),
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Accept': 'application/json',
+              'User-Agent': 'Flutter-App/${Platform.operatingSystem}',
+              'Connection': 'keep-alive',
+            },
+            body: json.encode([informeDetalleData]),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      debugPrint(
+        '📊 Respuesta guardar detalle informe - Status: ${response.statusCode}',
+      );
+      debugPrint('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Verificar si la respuesta contiene errores
+        if (response.body.contains('Error') ||
+            response.body.contains('error')) {
+          debugPrint('❌ Error en respuesta del servidor: ${response.body}');
+          throw Exception('Error del servidor: ${response.body}');
+        }
+
+        debugPrint('✅ Detalle de informe de rendición guardado exitosamente');
+        return true;
+      } else {
+        debugPrint('❌ Error del servidor: ${response.statusCode}');
+        throw Exception(
+          'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
+        );
+      }
+    } on SocketException catch (e) {
+      debugPrint('🔌 Error de conexión al guardar detalle informe: $e');
+      throw Exception(
+        'Sin conexión al servidor. Verifica tu conexión a internet.',
+      );
+    } on HttpException catch (e) {
+      debugPrint('🌐 Error HTTP al guardar detalle informe: $e');
+      throw Exception('Error de protocolo HTTP: $e');
+    } on FormatException catch (e) {
+      debugPrint('📝 Error de formato al guardar detalle informe: $e');
+      throw Exception('El servidor devolvió datos en formato incorrecto');
+    } catch (e) {
+      if (e.toString().contains('Sin conexión') ||
+          e.toString().contains('Error del servidor') ||
+          e.toString().contains('Respuesta vacía') ||
+          e.toString().contains('Error al procesar')) {
+        rethrow;
+      }
+      debugPrint('💥 Error no manejado al guardar detalle informe: $e');
+      throw Exception('Error inesperado al guardar detalle informe: $e');
+    }
+  }
+
+  Future<bool> saveupdateRendicionGasto(
+    Map<String, dynamic> informeDetalleData,
+  ) async {
+    debugPrint('🚀 Guardando detalle de informe de rendición...');
+    debugPrint('📍 URL: $baseUrl/saveupdate/updaterendiciongasto');
+    debugPrint('📦 Datos a enviar: $informeDetalleData');
+
+    try {
+      // Diagnóstico de conectividad en modo debug
+      if (!kReleaseMode) {
+        final diagnostic = await ConnectivityHelper.fullConnectivityDiagnostic(
+          baseUrl,
+        );
+        if (!diagnostic['internetConnection']) {
+          throw Exception('❌ Sin conexión a internet');
+        }
+        if (!diagnostic['serverReachable']) {
+          throw Exception('❌ No se puede alcanzar el servidor $baseUrl');
+        }
+      }
+
+      final response = await client
+          .post(
+            Uri.parse('$baseUrl/saveupdate/updaterendiciongasto'),
             headers: {
               'Content-Type': 'application/json; charset=UTF-8',
               'Accept': 'application/json',

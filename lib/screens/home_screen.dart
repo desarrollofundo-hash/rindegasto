@@ -243,10 +243,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPantallaRevision() {
+  Widget _buildPantallaAditoria() {
     return Scaffold(
       appBar: CustomAppBar(
-        hintText: "Buscar en Revisión...",
+        hintText: "Buscar en Auditoría...",
         onProfilePressed: () => _mostrarEditarPerfil(context),
         notificationCount: _notificaciones,
         onNotificationPressed: _decrementarNotificaciones,
@@ -273,16 +273,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPantallaConfiguracion() {
+  Widget _buildPantallaRevision() {
     return Scaffold(
       appBar: CustomAppBar(
-        hintText: "Configuración...",
+        hintText: "Buscar en Revisión...",
         onProfilePressed: () => _mostrarEditarPerfil(context),
         notificationCount: _notificaciones,
         onNotificationPressed: _decrementarNotificaciones,
       ),
-      body: const Center(
-        child: Text("⚙️ Configuración", style: TextStyle(fontSize: 20)),
+      body: TabbedScreen(
+        tabLabels: const ["Todos", "Borrador", "Transporte"],
+        tabColors: const [Colors.green, Colors.green, Colors.green],
+        tabViews: [
+          GastosList(gastos: gastosRecepcion, onRefresh: _refreshConDelay),
+          GastosList(
+            gastos: gastosRecepcion
+                .where((g) => g.estado == "Borrador")
+                .toList(),
+            onRefresh: _refreshConDelay,
+          ),
+          GastosList(
+            gastos: gastosRecepcion
+                .where((g) => g.categoria == "Transporte")
+                .toList(),
+            onRefresh: _refreshConDelay,
+          ),
+        ],
       ),
     );
   }
@@ -340,8 +356,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> pages = [
       _buildPantallaInicio(), // 0 - Gastos
       _buildPantallaInformes(), // 1 - Informes
+      _buildPantallaAditoria(), // 3 - Configuración
       _buildPantallaRevision(), // 2 - Revisión
-      _buildPantallaConfiguracion(), // 3 - Config
     ];
 
     return Scaffold(
@@ -368,8 +384,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.description),
             label: "Informes",
           ),
+          NavigationDestination(
+            icon: Icon(Icons.assignment_turned_in_outlined),
+            label: "Aditoria",
+          ),
           NavigationDestination(icon: Icon(Icons.inbox), label: "Revisión"),
-          NavigationDestination(icon: Icon(Icons.settings), label: "Config"),
         ],
       ),
     );

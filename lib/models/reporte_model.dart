@@ -101,6 +101,8 @@ class Reporte {
     }
   }
 
+  get id => null;
+
   static int _parseIntSafe(dynamic value, int defaultValue) {
     if (value == null) return defaultValue;
     if (value is int) return value;

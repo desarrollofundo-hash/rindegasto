@@ -711,9 +711,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             : (_selectedImage != null
                   ? base64Encode(_selectedImage!.readAsBytesSync())
                   : ""),
-        "obs": _notaController.text.length > 1000
-            ? _notaController.text.substring(0, 1000)
-            : _notaController.text,
+        "obs": '1E1ZuqyTM2lQru7pPriwk798SyQsBEWAx',
         "estado": "S", // Solo 1 carácter como requiere la BD
         "fecCre": DateTime.now().toIso8601String(),
         "useReg": UserService().currentUserCode, // Campo obligatorio

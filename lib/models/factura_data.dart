@@ -98,13 +98,19 @@ class FacturaData {
   // HELPER: Determinar tipo de comprobante según código SUNAT
   static String? _getTipoComprobante(String codigo) {
     final tipos = {
-      '01': 'FACTURA ELECTRÓNICA',
+      '01': 'FACTURA ELECTRONICA',
       '03': 'BOLETA DE VENTA',
-      '07': 'NOTA DE CRÉDITO',
-      '08': 'NOTA DE DÉBITO',
-      '09': 'GUÍA DE REMISIÓN',
+      '07': 'NOTA DE CREDITO',
+      '08': 'NOTA DE DEBITO',
+      '09': 'GUÍA DE REMISION',
     };
     return tipos[codigo] ?? 'COMPROBANTE ($codigo)';
+  }
+
+  // HELPER: Determinar tipo de comprobante según código SUNAT
+  static String? getTipoMoneda(String moneda) {
+    final tipos = {'PEN': 'PEN', 'USD': 'USD', 'S': 'PEN', 'D': 'USD'};
+    return tipos[moneda] ?? '($moneda)';
   }
 
   // HELPER: Parse seguro de double

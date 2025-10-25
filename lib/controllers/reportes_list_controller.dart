@@ -1,11 +1,15 @@
 // ignore_for_file: avoid_print
 import 'dart:io';
+import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:convert';
+import 'package:qr_code_tools/qr_code_tools.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
+import 'package:printing/printing.dart';
 import '../models/reporte_model.dart';
 import '../models/dropdown_option.dart';
 import '../models/estado_reporte.dart';
@@ -184,19 +188,69 @@ class ReportesListController {
           if (path == null) return;
           final file = File(path);
 
-          final confirmed = await _mostrarPrevisualizacionDocumento(
+          final resultMap = await _mostrarPrevisualizacionDocumento(
             context,
             file,
           );
-          if (confirmed == true) {
-            // Por ahora mantenemos comportamiento previo: no procesamos PDFs
-            if (mounted()) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Documento seleccionado'),
-                  backgroundColor: Colors.indigo,
+
+          if (resultMap != null) {
+            final qrRaw = resultMap['qr'] as String?;
+            if (qrRaw != null && qrRaw.trim().isNotEmpty) {
+              final parts = qrRaw.split('|').map((s) => s.trim()).toList();
+              final qrMap = <String, String>{
+                'RUC Emisor': parts.length > 0 ? parts[0] : '',
+                'Razón Social': '',
+                'Tipo Comprobante': parts.length > 1 ? parts[1] : '',
+                'Serie': parts.length > 2 ? parts[2] : '',
+                'Número': parts.length > 3 ? parts[3] : '',
+                'Subtotal': '',
+                'IGV': parts.length > 4 ? parts[4] : '',
+                'Total': parts.length > 5 ? parts[5] : '',
+                'Fecha': parts.length > 6 ? parts[6] : '',
+                'RUC Cliente': parts.length > 8 ? parts[8] : '',
+                'Razón Social Cliente': '',
+                'raw_text': qrRaw,
+              };
+
+              final ocrMap = {
+                'RUC Emisor': qrMap['RUC Emisor']!,
+                'Razón Social': qrMap['Razón Social']!,
+                'Tipo Comprobante': qrMap['Tipo Comprobante']!,
+                'Serie': qrMap['Serie']!,
+                'Número': qrMap['Número']!,
+                'Fecha': qrMap['Fecha']!,
+                'Subtotal': qrMap['Subtotal']!,
+                'IGV': qrMap['IGV']!,
+                'Total': qrMap['Total']!,
+                'Moneda': '',
+                'RUC Cliente': qrMap['RUC Cliente']!,
+                'Razón Social Cliente': qrMap['Razón Social Cliente']!,
+                'raw_text': qrMap['raw_text']!,
+              };
+
+              await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => FacturaModalPeruOCR(
+                  ocrData: ocrMap,
+                  evidenciaFile: file,
+                  politicaSeleccionada: seleccion,
+                  onSave: (facturaData, _) {
+                    Navigator.of(context).pop();
+                  },
+                  onCancel: () => Navigator.of(context).pop(),
                 ),
               );
+            } else {
+              if (mounted()) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Documento seleccionado'),
+                    backgroundColor: Colors.indigo,
+                  ),
+                );
+              }
             }
           }
         } catch (e) {
@@ -224,18 +278,28 @@ class ReportesListController {
   }
 
   // Mostrar modal de política y continuar con la selección
+  // Mostrar modal de política y continuar con la selección
   Future<void> crearGasto(BuildContext context, bool Function() mounted) async {
     try {
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (context) => PoliticaSelectionModal(
+        builder: (modalContext) => PoliticaSelectionModal(
           onPoliticaSelected: (politica) {
-            Navigator.of(context).pop();
+            // cerramos el selector usando el contexto del bottom sheet
+            Navigator.of(modalContext).pop();
+
+            // Abrir el modal correspondiente después de que el selector se cierre.
+            // Future.microtask evita problemas al abrir un nuevo bottom sheet
+            // mientras se está cerrando otro.
+            Future.microtask(() {
+              if (!mounted()) return;
+              navegarSegunPolitica(context, politica);
+            });
           },
           onCancel: () {
-            Navigator.of(context).pop();
+            Navigator.of(modalContext).pop();
           },
         ),
       );
@@ -252,38 +316,17 @@ class ReportesListController {
     }
   }
 
-  void continuarConPolitica(
-    BuildContext context,
-    DropdownOption politica,
-    bool Function() mounted,
-  ) {
-    if (mounted()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(child: Text('Política seleccionada: ${politica.value}')),
-            ],
-          ),
-          backgroundColor: Colors.indigo,
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(
-            label: 'Continuar',
-            textColor: Colors.white,
-            onPressed: () {
-              navegarSegunPolitica(context, politica);
-            },
-          ),
-        ),
-      );
-    }
-  }
-
   /// Navegar y abrir modal según la política seleccionada
-  void navegarSegunPolitica(BuildContext context, DropdownOption politica) {
-    final key = politica.value.toUpperCase();
+  /// Acepta `DropdownOption` o un `String` y lo normaliza a `DropdownOption`.
+  void navegarSegunPolitica(BuildContext context, dynamic politica) {
+    // Normalizar a DropdownOption si es necesario
+    final DropdownOption politicaObj = (politica is DropdownOption)
+        ? politica
+        : DropdownOption(
+            value: politica?.toString() ?? '', id: '',
+          );
+
+    final key = politicaObj.value.toUpperCase();
     switch (key) {
       case 'GENERAL':
         showModalBottomSheet(
@@ -291,7 +334,7 @@ class ReportesListController {
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (ctx) => NuevoGastoModal(
-            politicaSeleccionada: politica,
+            politicaSeleccionada: politicaObj,
             onCancel: () => Navigator.of(ctx).pop(),
             onSave: (data) {
               Navigator.of(ctx).pop();
@@ -301,14 +344,12 @@ class ReportesListController {
         );
         break;
       case 'GASTOS DE MOVILIDAD':
-      case 'MOVILIDAD':
-      case 'GASTOS MOVILIDAD':
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (ctx) => NuevoGastoMovilidad(
-            politicaSeleccionada: politica,
+            politicaSeleccionada: politicaObj,
             onCancel: () => Navigator.of(ctx).pop(),
             onSave: (data) {
               Navigator.of(ctx).pop();
@@ -320,7 +361,7 @@ class ReportesListController {
         // Para políticas no contempladas, mostrar mensaje
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Política no implementada: ${politica.value}'),
+            content: Text('Política no implementada: ${politicaObj.value}'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -434,19 +475,69 @@ class ReportesListController {
           if (path == null) return;
           final file = File(path);
 
-          final confirmed = await _mostrarPrevisualizacionDocumento(
+          final resultMap = await _mostrarPrevisualizacionDocumento(
             context,
             file,
           );
-          if (confirmed == true) {
-            // Por ahora, solo mostramos un mensaje; si se requiere procesar PDFs, implementar aquí
-            if (mounted()) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Documento seleccionado'),
-                  backgroundColor: Colors.indigo,
+
+          if (resultMap != null) {
+            final qrRaw = resultMap['qr'] as String?;
+            if (qrRaw != null && qrRaw.trim().isNotEmpty) {
+              final parts = qrRaw.split('|').map((s) => s.trim()).toList();
+              final qrMap = <String, String>{
+                'RUC Emisor': parts.length > 0 ? parts[0] : '',
+                'Razón Social': '',
+                'Tipo Comprobante': parts.length > 1 ? parts[1] : '',
+                'Serie': parts.length > 2 ? parts[2] : '',
+                'Número': parts.length > 3 ? parts[3] : '',
+                'Subtotal': '',
+                'IGV': parts.length > 4 ? parts[4] : '',
+                'Total': parts.length > 5 ? parts[5] : '',
+                'Fecha': parts.length > 6 ? parts[6] : '',
+                'RUC Cliente': parts.length > 8 ? parts[8] : '',
+                'Razón Social Cliente': '',
+                'raw_text': qrRaw,
+              };
+
+              final ocrMap = {
+                'RUC Emisor': qrMap['RUC Emisor']!,
+                'Razón Social': qrMap['Razón Social']!,
+                'Tipo Comprobante': qrMap['Tipo Comprobante']!,
+                'Serie': qrMap['Serie']!,
+                'Número': qrMap['Número']!,
+                'Fecha': qrMap['Fecha']!,
+                'Subtotal': qrMap['Subtotal']!,
+                'IGV': qrMap['IGV']!,
+                'Total': qrMap['Total']!,
+                'Moneda': '',
+                'RUC Cliente': qrMap['RUC Cliente']!,
+                'Razón Social Cliente': qrMap['Razón Social Cliente']!,
+                'raw_text': qrMap['raw_text']!,
+              };
+
+              await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => FacturaModalPeruOCR(
+                  ocrData: ocrMap,
+                  evidenciaFile: file,
+                  politicaSeleccionada: 'GENERAL',
+                  onSave: (facturaData, _) {
+                    Navigator.of(context).pop();
+                  },
+                  onCancel: () => Navigator.of(context).pop(),
                 ),
               );
+            } else {
+              if (mounted()) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Documento seleccionado'),
+                    backgroundColor: Colors.indigo,
+                  ),
+                );
+              }
             }
           }
         } catch (e) {
@@ -477,142 +568,281 @@ class ReportesListController {
     BuildContext context,
     File file,
   ) async {
-    // Antes de mostrar la previsualización, ejecutar el script Python que
-    // analiza la imagen (`analizar_qr.py`) y capturar su salida.
+    // No usamos el script Python aquí. El análisis QR se realizará con el
+    // widget nativo `QrReaderPage` cuando el usuario pulse "Leer QR".
     String analisis = '';
-    try {
-      // Ruta al script dentro del workspace
-      final scriptPath = Platform.isWindows
-          ? r'c:\rindegasto\tools\analizar_qr.py'
-          : '/c/rindegasto/tools/analizar_qr.py';
 
-      // Nota: en dispositivos móviles (Android/iOS) no existe un intérprete
-      // Python accesible desde el sandbox de la aplicación, por lo que
-      // intentar ejecutar `python` provocará errores como
-      // "/system/bin/sh: python: inaccessible or not found".
-      // Aquí damos un fallback amigable para el usuario en esos entornos.
-      if (Platform.isAndroid || Platform.isIOS) {
-        analisis =
-            'Análisis QR no disponible en este dispositivo: no es posible ejecutar Python desde la aplicación.\nUsa el escáner QR integrado (Abrir Escáner) o habilita una solución nativa/servidor para procesar la imagen.';
-      } else {
-        // Ejecutar Python pasando la ruta de la imagen como argumento (si el
-        // script lo soporta). Usamos runInShell para mayor compatibilidad en
-        // entornos Windows.
-        final result = await Process.run('python', [
-          scriptPath,
-          file.path,
-        ], runInShell: true);
-
-        if (result.exitCode == 0) {
-          analisis = result.stdout.toString().trim();
-        } else {
-          // Si hubo error, intentamos leer stdout/stderr para mostrar algo
-          final out = result.stdout.toString().trim();
-          final err = result.stderr.toString().trim();
-
-          // Si detectamos mensajes típicos de 'python not found' devolvemos
-          // un texto más claro para el usuario en lugar del stderr críptico.
-          final errLower = err.toLowerCase();
-          if (errLower.contains('inaccessible') ||
-              errLower.contains('not found') ||
-              errLower.contains('python:')) {
-            analisis =
-                'Análisis QR no disponible en este entorno: intérprete Python no accesible.';
-            if (out.isNotEmpty) analisis += '\n\nSalida:\n' + out;
-            if (err.isNotEmpty) analisis += '\n\nError:\n' + err;
-          } else {
-            analisis =
-                (out.isNotEmpty ? out : '') +
-                (err.isNotEmpty ? '\n' + err : '');
-            analisis = analisis.trim();
-          }
-        }
-      }
-    } catch (e) {
-      // Si falla la ejecución del proceso no interrumpimos el flujo; dejamos
-      // `analisis` vacío para que solo se muestre la previsualización.
-      analisis = '';
-    }
+    bool _decodingStarted = false;
 
     return showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Previsualización'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Mostrar texto simple con el resultado del análisis (si existe)
-                  if (analisis.isNotEmpty) ...[
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8.0),
-                      child: Text(
-                        'Análisis QR:',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: SelectableText(
-                        analisis,
-                        style: const TextStyle(fontSize: 13),
+        // Usamos StatefulBuilder para actualizar `analisis` dentro del diálogo
+        return StatefulBuilder(
+          builder: (ctx2, setState) {
+            // Iniciar la decodificación una sola vez cuando se construya el diálogo
+            if (!_decodingStarted) {
+              _decodingStarted = true;
+              // Decodificar QR desde la ruta de la imagen usando ML Kit primero
+              _decodeQrPreferMlKit(file.path)
+                  .then((data) {
+                    setState(() => analisis = data ?? 'No se encontró QR');
+                  })
+                  .catchError((e) {
+                    setState(() => analisis = 'Error leyendo QR: $e');
+                  });
+            }
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Container(
+                width: double.maxFinite,
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Previsualización',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
-                  Image.file(file),
-                ],
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Confirmar'),
-            ),
-          ],
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Mostrar texto simple con el resultado del análisis (si existe)
+                      if (analisis.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            'Análisis QR:',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: SelectableText(
+                            analisis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                      SizedBox(
+                        width: MediaQuery.of(ctx2).size.width * 0.8,
+                        height: MediaQuery.of(ctx2).size.height * 0.6,
+                        child: InteractiveViewer(
+                          panEnabled: true,
+                          scaleEnabled: true,
+                          minScale: 1.0,
+                          maxScale: 4.0,
+                          child: Image.file(
+                            file,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx2).pop(false),
+                  child: const Text('Cancelar'),
+                ),
+                // Nota: la lectura se realiza automáticamente al abrir el diálogo
+                ElevatedButton(
+                  onPressed: () => Navigator.of(ctx2).pop(true),
+                  child: const Text('Confirmar'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
   // Muestra previsualización simple para documento (PDF)
-  Future<bool?> _mostrarPrevisualizacionDocumento(
+  Future<Map<String, dynamic>?> _mostrarPrevisualizacionDocumento(
     BuildContext context,
     File file,
   ) async {
-    return showDialog<bool>(
+    // Intentar rasterizar la primera página del PDF para mostrar una
+    // previsualización en el diálogo. Aplicamos protecciones para evitar
+    // OOM/ciertos cierres en dispositivos con poca memoria:
+    // - Si el PDF es muy grande, evitamos rasterizar y usamos fallback.
+    // - Reducimos DPI en archivos grandes.
+    // - Añadimos timeout y capturamos errores explícitamente.
+    // Devuelve un mapa con la imagen rasterizada y (opcional) el texto QR
+    Future<Map<String, dynamic>?> _rasterFirstPage() async {
+      try {
+        final bytes = await file.readAsBytes();
+
+        // Si el PDF es muy grande, no intentamos rasterizar (evita OOM).
+        final fileSize = bytes.lengthInBytes;
+        // Si el PDF es relativamente grande, evitamos rasterizar para no agotar memoria.
+        // Usamos un umbral conservador de 2 MB: archivos mayores usarán el fallback.
+        const int maxSizeForRaster = 2 * 1024 * 1024; // 2 MB
+        if (fileSize > maxSizeForRaster) {
+          debugPrint(
+            'PDF demasiado grande para rasterizar (${fileSize} bytes), usando fallback',
+          );
+          return null;
+        }
+
+        // Forzamos DPI muy bajo (thumbnail) para minimizar memoria usada.
+        // Esto reduce calidad pero evita que el proceso sea terminado por el SO.
+        final double dpi = 24.0;
+
+        // Printing.raster devuelve un Stream<PdfRaster>
+        final stream = Printing.raster(bytes, pages: [0], dpi: dpi);
+
+        // Esperar el primer PdfRaster con timeout para evitar bloqueos largos
+        PdfRaster raster;
+        try {
+          // Timeout más corto para evitar bloqueos largos en dispositivos lentos
+          raster = await stream.first.timeout(const Duration(seconds: 8));
+        } catch (e) {
+          debugPrint('Timeout o error al obtener PdfRaster: $e');
+          return null;
+        }
+
+        // PdfRaster ofrece toImage() que maneja la conversión segura a ui.Image
+        try {
+          final uiImage = await raster.toImage();
+
+          // Intentar decodificar QR a partir de la imagen rasterizada.
+          // Para ML Kit necesitamos un archivo, así que convertimos la ui.Image a PNG
+          // y la escribimos en un archivo temporal.
+          try {
+            final bd = await uiImage.toByteData(format: ui.ImageByteFormat.png);
+            if (bd != null) {
+              final bytes = bd.buffer.asUint8List();
+              final tempDir = await Directory.systemTemp.createTemp(
+                'rindegasto_pdf_preview',
+              );
+              final tmpFile = File(
+                '${tempDir.path}${Platform.pathSeparator}preview.png',
+              );
+              await tmpFile.writeAsBytes(bytes);
+
+              String? qrText;
+              try {
+                qrText = await _decodeQrPreferMlKit(tmpFile.path);
+              } catch (e) {
+                debugPrint('Error decodificando QR desde preview PNG: $e');
+              }
+
+              // Limpiar archivo temporal (no esperamos a que termine)
+              try {
+                await tmpFile.delete();
+                await tempDir.delete();
+              } catch (_) {}
+
+              return {'image': uiImage, 'qr': qrText};
+            }
+          } catch (e) {
+            debugPrint('Error convirtiendo ui.Image a bytes PNG: $e');
+          }
+
+          // Si no pudimos crear PNG o decodificar QR, devolvemos la imagen sin QR
+          return {'image': uiImage, 'qr': null};
+        } catch (e, st) {
+          debugPrint('Error convirtiendo PdfRaster a Image: $e\n$st');
+          return null;
+        }
+      } catch (e, st) {
+        debugPrint('No se pudo rasterizar PDF: $e\n$st');
+        return null;
+      }
+    }
+
+    // Rasterizar primero y luego mostrar diálogo sincronamente con el resultado
+    final map = await _rasterFirstPage();
+
+    return showDialog<Map<String, dynamic>?>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
+        final img = map == null ? null : map['image'] as ui.Image?;
+        final qr = map == null ? null : (map['qr'] as String?);
+
+        // Si encontramos texto QR, mostrarlo arriba
+        final qrWidget = (qr != null && qr.trim().isNotEmpty)
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8.0),
+                    child: Text(
+                      'Datos extraídos (QR):',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: SelectableText(
+                      qr,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              )
+            : const SizedBox.shrink();
+
         return AlertDialog(
-          title: const Text('Previsualización de documento'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.insert_drive_file,
-                size: 64,
-                color: Colors.indigo,
-              ),
-              const SizedBox(height: 8),
-              Text(file.path.split(Platform.pathSeparator).last),
-            ],
-          ),
+          title: const Text('Previsualización'),
+          content: img != null
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    qrWidget,
+                    SizedBox(
+                      width: MediaQuery.of(ctx).size.width * 0.6,
+                      height: MediaQuery.of(ctx).size.height * 0.5,
+                      child: InteractiveViewer(
+                        panEnabled: true,
+                        scaleEnabled: true,
+                        minScale: 1.0,
+                        maxScale: 4.0,
+                        child: RawImage(image: img, fit: BoxFit.contain),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(file.path.split(Platform.pathSeparator).last),
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.insert_drive_file,
+                      size: 64,
+                      color: Colors.indigo,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(file.path.split(Platform.pathSeparator).last),
+                  ],
+                ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
+              onPressed: () => Navigator.of(ctx).pop(null),
               child: const Text('Cancelar'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
+              onPressed: () => Navigator.of(ctx).pop(map),
               child: const Text('Confirmar'),
             ),
           ],
@@ -765,107 +995,133 @@ class ReportesListController {
         ocrResult = {'Error': e.toString()};
       }
 
-      // Mostrar JSON crudo en un diálogo para inspección
+      // Eliminado diálogo de JSON por petición del usuario: no mostramos
+      // el JSON crudo. Continuamos directamente con la lógica que usa
+      // 'FacturaOcrData' para abrir el modal si corresponde.
       bool openedFromJsonDialog = false;
-      try {
-        final pretty = const JsonEncoder.withIndent('  ').convert(ocrResult);
-        await showDialog(
-          context: context,
-          barrierDismissible: true,
-          builder: (ctx) {
-            return AlertDialog(
-              title: const Text('Resultado OCR (JSON)'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: SingleChildScrollView(child: SelectableText(pretty)),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cerrar'),
-                ),
-              ],
-            );
-          },
-        );
+      if (ocrResult.containsKey('FacturaOcrData')) {
+        final f = ocrResult['FacturaOcrData'];
+        if (f is Map) {
+          final facturaFromJson = FacturaOcrData();
+          facturaFromJson.rucEmisor = (f['rucEmisor'] as String?)?.trim();
+          facturaFromJson.razonSocialEmisor =
+              (f['razonSocialEmisor'] as String?)?.trim();
+          facturaFromJson.tipoComprobante = (f['tipoComprobante'] as String?)
+              ?.trim();
+          facturaFromJson.serie = (f['serie'] as String?)?.trim();
+          facturaFromJson.numero = (f['numero'] as String?)?.trim();
+          facturaFromJson.fecha = (f['fecha'] as String?)?.trim();
+          facturaFromJson.subtotal = (f['subtotal'] as String?)?.trim();
+          facturaFromJson.igv = (f['igv'] as String?)?.trim();
+          facturaFromJson.total = (f['total'] as String?)?.trim();
+          facturaFromJson.moneda = (f['moneda'] as String?)?.trim();
+          facturaFromJson.rucCliente = (f['rucCliente'] as String?)?.trim();
+          facturaFromJson.razonSocialCliente =
+              (f['razonSocialCliente'] as String?)?.trim();
 
-        // Después de cerrar el diálogo JSON, si el resultado contiene
-        // una sección 'FacturaOcrData' la usamos para poblar el modal
-        // inmediatamente y evitar abrirlo nuevamente más abajo.
-        if (ocrResult.containsKey('FacturaOcrData')) {
-          final f = ocrResult['FacturaOcrData'];
-          if (f is Map) {
-            final facturaFromJson = FacturaOcrData();
-            facturaFromJson.rucEmisor = (f['rucEmisor'] as String?)?.trim();
-            facturaFromJson.razonSocialEmisor =
-                (f['razonSocialEmisor'] as String?)?.trim();
-            facturaFromJson.tipoComprobante = (f['tipoComprobante'] as String?)
-                ?.trim();
-            facturaFromJson.serie = (f['serie'] as String?)?.trim();
-            facturaFromJson.numero = (f['numero'] as String?)?.trim();
-            facturaFromJson.fecha = (f['fecha'] as String?)?.trim();
-            facturaFromJson.subtotal = (f['subtotal'] as String?)?.trim();
-            facturaFromJson.igv = (f['igv'] as String?)?.trim();
-            facturaFromJson.total = (f['total'] as String?)?.trim();
-            facturaFromJson.moneda = (f['moneda'] as String?)?.trim();
-            facturaFromJson.rucCliente = (f['rucCliente'] as String?)?.trim();
-            facturaFromJson.razonSocialCliente =
-                (f['razonSocialCliente'] as String?)?.trim();
+          // Abrir modal sólo si al menos un campo está presente
+          final hasAny = [
+            facturaFromJson.rucEmisor,
+            facturaFromJson.razonSocialEmisor,
+            facturaFromJson.tipoComprobante,
+            facturaFromJson.serie,
+            facturaFromJson.numero,
+            facturaFromJson.fecha,
+            facturaFromJson.subtotal,
+            facturaFromJson.igv,
+            facturaFromJson.total,
+            facturaFromJson.moneda,
+            facturaFromJson.rucCliente,
+            facturaFromJson.razonSocialCliente,
+          ].any((v) => v != null && v.toString().trim().isNotEmpty);
 
-            // Abrir modal sólo si al menos un campo está presente
-            final hasAny = [
-              facturaFromJson.rucEmisor,
-              facturaFromJson.razonSocialEmisor,
-              facturaFromJson.tipoComprobante,
-              facturaFromJson.serie,
-              facturaFromJson.numero,
-              facturaFromJson.fecha,
-              facturaFromJson.subtotal,
-              facturaFromJson.igv,
-              facturaFromJson.total,
-              facturaFromJson.moneda,
-              facturaFromJson.rucCliente,
-              facturaFromJson.razonSocialCliente,
-            ].any((v) => v != null && v.toString().trim().isNotEmpty);
+          if (hasAny) {
+            openedFromJsonDialog = true;
+            // Intentar leer y descomponer QR de la imagen primero.
+            // Si se obtiene una trama válida, enviar esos campos al modal.
+            Map<String, String> ocrMap = {
+              'RUC Emisor': facturaFromJson.rucEmisor ?? '',
+              'Razón Social': facturaFromJson.razonSocialEmisor ?? '',
+              'Tipo Comprobante': facturaFromJson.tipoComprobante ?? '',
+              'Serie': facturaFromJson.serie ?? '',
+              'Número': facturaFromJson.numero ?? '',
+              'Fecha': facturaFromJson.fecha ?? '',
+              'Subtotal': facturaFromJson.subtotal ?? '',
+              'IGV': facturaFromJson.igv ?? '',
+              'Total': facturaFromJson.total ?? '',
+              'Moneda': facturaFromJson.moneda ?? '',
+              'RUC Cliente': facturaFromJson.rucCliente ?? '',
+              'Razón Social Cliente': facturaFromJson.razonSocialCliente ?? '',
+              'raw_text': facturaFromJson.toString(),
+            };
 
-            if (hasAny) {
-              openedFromJsonDialog = true;
-              final ocrMap = <String, String>{
-                'RUC Emisor': facturaFromJson.rucEmisor ?? '',
-                'Razón Social': facturaFromJson.razonSocialEmisor ?? '',
-                'Tipo Comprobante': facturaFromJson.tipoComprobante ?? '',
-                'Serie': facturaFromJson.serie ?? '',
-                'Número': facturaFromJson.numero ?? '',
-                'Fecha': facturaFromJson.fecha ?? '',
-                'Subtotal': facturaFromJson.subtotal ?? '',
-                'IGV': facturaFromJson.igv ?? '',
-                'Total': facturaFromJson.total ?? '',
-                'Moneda': facturaFromJson.moneda ?? '',
-                'RUC Cliente': facturaFromJson.rucCliente ?? '',
-                'Razón Social Cliente':
-                    facturaFromJson.razonSocialCliente ?? '',
-                'raw_text': facturaFromJson.toString(),
-              };
+            try {
+              final qrRaw = await QrCodeToolsPlugin.decodeFrom(
+                imagenFactura.path,
+              );
+              if (qrRaw != null && qrRaw.trim().isNotEmpty) {
+                final parts = qrRaw.split('|').map((s) => s.trim()).toList();
 
-              await showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (context) => FacturaModalPeruOCR(
-                  ocrData: ocrMap,
-                  evidenciaFile: imagenFactura,
-                  politicaSeleccionada: politicaSeleccionada,
-                  onSave: (facturaData, _) {
-                    Navigator.of(context).pop();
-                  },
-                  onCancel: () => Navigator.of(context).pop(),
-                ),
+                // Mapear posiciones de la trama QR a los campos esperados.
+                // Ejemplo esperado de trama:
+                // RUC|Tipo|Serie|Número|Subtotal|Total|Fecha|Moneda|RUCCliente|...
+                final qrMap = <String, String>{
+                  'RUC Emisor': parts.length > 0 ? parts[0] : '',
+                  'Razón Social': '',
+                  'Tipo Comprobante': parts.length > 1 ? parts[1] : '',
+                  'Serie': parts.length > 2 ? parts[2] : '',
+                  'Número': parts.length > 3 ? parts[3] : '',
+                  'Subtotal': '',
+                  'IGV': parts.length > 4 ? parts[4] : '',
+                  'Total': parts.length > 5 ? parts[5] : '',
+                  'Fecha': parts.length > 6 ? parts[6] : '',
+                  'RUC Cliente': parts.length > 8 ? parts[8] : '',
+                  'Razón Social Cliente': '',
+                  'raw_text': qrRaw,
+                };
+
+                // Usar los valores del QR para poblar el mapa que se enviará
+                // al modal (sobrescribiendo donde exista información).
+                ocrMap = {
+                  'RUC Emisor': qrMap['RUC Emisor']!,
+                  'Razón Social': qrMap['Razón Social']!,
+                  'Tipo Comprobante': qrMap['Tipo Comprobante']!,
+                  'Serie': qrMap['Serie']!,
+                  'Número': qrMap['Número']!,
+                  'Fecha': qrMap['Fecha']!,
+                  'Subtotal': qrMap['Subtotal']!,
+                  'IGV': qrMap['IGV']!,
+                  'Total': qrMap['Total']!,
+                  'Moneda': ocrMap['Moneda']!,
+                  'RUC Cliente': qrMap['RUC Cliente']!,
+                  'Razón Social Cliente':
+                      qrMap['Razón Social Cliente'] ??
+                      ocrMap['Razón Social Cliente']!,
+                  'raw_text': qrMap['raw_text'] ?? ocrMap['raw_text']!,
+                };
+              }
+            } catch (e) {
+              debugPrint(
+                'No se pudo leer QR desde imagen para poblar modal: $e',
               );
             }
+
+            await showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => FacturaModalPeruOCR(
+                ocrData: ocrMap,
+                evidenciaFile: imagenFactura,
+                politicaSeleccionada: politicaSeleccionada,
+                onSave: (facturaData, _) {
+                  Navigator.of(context).pop();
+                },
+                onCancel: () => Navigator.of(context).pop(),
+              ),
+            );
           }
         }
-      } catch (e) {
-        debugPrint('No se pudo mostrar JSON OCR: $e');
       }
       String parsedText = '';
       if (ocrResult.containsKey('ParsedResults')) {
@@ -1154,5 +1410,41 @@ class ReportesListController {
 
     // Fallback
     return Colors.grey[400];
+  }
+
+  // Decodifica QR usando Google ML Kit (BarcodeScanner). Retorna el rawValue
+  // del primer barcode encontrado, o null si no se detecta ninguno.
+  Future<String?> _decodeQrWithMlKit(String imagePath) async {
+    try {
+      final inputImage = InputImage.fromFilePath(imagePath);
+      final scanner = BarcodeScanner();
+      final barcodes = await scanner.processImage(inputImage);
+      await scanner.close();
+      for (final b in barcodes) {
+        final v = b.rawValue;
+        if (v != null && v.trim().isNotEmpty) return v;
+      }
+    } catch (e) {
+      debugPrint('ML Kit barcode scan error: $e');
+    }
+    return null;
+  }
+
+  // Intenta primero con ML Kit (más robusto) y si no devuelve nada, usa
+  // QrCodeToolsPlugin como fallback (si está disponible).
+  Future<String?> _decodeQrPreferMlKit(String imagePath) async {
+    // Intento ML Kit primero
+    final fromMl = await _decodeQrWithMlKit(imagePath);
+    if (fromMl != null && fromMl.trim().isNotEmpty) return fromMl;
+
+    // Fallback a qr_code_tools
+    try {
+      final fromQt = await QrCodeToolsPlugin.decodeFrom(imagePath);
+      if (fromQt != null && fromQt.trim().isNotEmpty) return fromQt;
+    } catch (e) {
+      debugPrint('Fallback qr_code_tools error: $e');
+    }
+
+    return null;
   }
 }

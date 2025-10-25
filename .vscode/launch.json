@@ -1,7 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
-        /* {
+        /*{
             "name": "Flutter: Launch on Pixel 6",
             "request": "launch",
             "type": "dart",
@@ -14,6 +14,13 @@
             "type": "dart",
             "deviceId": "emulator-5554"
         }, */
+        /*{
+            "name": "SM A1555M",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main.dart",
+            "deviceId": "RF8X20GFZFB"
+        },*/
         {
             "name": "SM A1555M",
             "request": "launch",
@@ -22,31 +29,11 @@
             "deviceId": "RF8X20GFZFB"
         },
         {
-            "name": "Flutter: Attach to Pixel 6",
-            "request": "attach",
-            "type": "dart",
-            "deviceId": "RF8X20GFZFB"
-        },
-        {
             "name": "22101316UG",
             "request": "launch",
             "type": "dart",
             "program": "lib/main.dart",
             "deviceId": "onv845vkcivgwsmf"
-        },
-        {
-            "name": "22101316UG",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main.dart",
-            "deviceId": "onv845vkcivgwsmf"
-        },
-        {
-            "name": "SM A1555M",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main.dart",
-            "deviceId": "RF8X20GFZFB"
         },
     ]
 }

@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flu2/models/factura_data_ocr.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:file_picker/file_picker.dart';
-import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
 import '../models/dropdown_option.dart';
 import '../services/categoria_service.dart';
@@ -15,10 +15,10 @@ import '../services/company_service.dart';
 
 /// Widget modal personalizado para mostrar y editar datos de factura peruana
 class FacturaModalPeruEvid extends StatefulWidget {
-  final FacturaData facturaData;
+  final FacturaOcrData facturaData;
   final String politicaSeleccionada;
   final File? selectedFile;
-  final Function(FacturaData, String?) onSave;
+  final Function(FacturaOcrData, String?) onSave;
   final VoidCallback onCancel;
 
   const FacturaModalPeruEvid({
@@ -225,7 +225,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
     );
     _categoriaController = TextEditingController(text: '');
     _tipoGastoController = TextEditingController(text: '');
-    _rucController = TextEditingController(text: widget.facturaData.ruc ?? '');
+    _rucController = TextEditingController(
+      text: widget.facturaData.rucEmisor ?? '',
+    );
     _tipoComprobanteController = TextEditingController(
       text: widget.facturaData.tipoComprobante ?? '',
     );
@@ -235,14 +237,12 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
     _numeroController = TextEditingController(
       text: widget.facturaData.numero ?? '',
     );
-    _igvController = TextEditingController(
-      text: widget.facturaData.codigo ?? '',
-    );
+    _igvController = TextEditingController(text: widget.facturaData.igv ?? '');
     _fechaEmisionController = TextEditingController(
-      text: widget.facturaData.fechaEmision ?? '',
+      text: widget.facturaData.fecha ?? '',
     );
     _totalController = TextEditingController(
-      text: widget.facturaData.total?.toStringAsFixed(2) ?? '',
+      text: widget.facturaData.total ?? '',
     );
     _monedaController = TextEditingController(
       text: widget.facturaData.moneda ?? 'PEN',
@@ -1484,7 +1484,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: SelectableText(
-            widget.facturaData.rawData,
+            widget.facturaData.toString(),
             style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
           ),
         ),

@@ -1,7 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../controllers/login_controller.dart';
 
-class LoginView extends StatelessWidget {
+class LoginView extends StatefulWidget {
   final LoginController controller;
   final VoidCallback onLogin;
   final VoidCallback onForgotPassword;
@@ -16,36 +17,97 @@ class LoginView extends StatelessWidget {
   });
 
   @override
+  State<LoginView> createState() => _LoginViewState();
+}
+
+class _LoginViewState extends State<LoginView>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
+  final FocusNode _userFocusNode = FocusNode();
+  final FocusNode _passwordFocusNode = FocusNode();
+
+  bool _isUserFocused = false;
+  bool _isPasswordFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
+
+    _setupFocusListeners();
+    _animationController.forward();
+  }
+
+  void _setupFocusListeners() {
+    _userFocusNode.addListener(() {
+      setState(() => _isUserFocused = _userFocusNode.hasFocus);
+    });
+    _passwordFocusNode.addListener(() {
+      setState(() => _isPasswordFocused = _passwordFocusNode.hasFocus);
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _userFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _onLoginPressed() {
+    _userFocusNode.unfocus();
+    _passwordFocusNode.unfocus();
+    widget.onLogin();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.blue.shade700,
-              Colors.blue.shade500,
-              Colors.blue.shade300,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 40),
-                  _buildLoginForm(context),
-                  const SizedBox(height: 32),
-                  _buildRegisterSection(),
-                ],
-              ),
+      resizeToAvoidBottomInset:
+          true, // ✅ Evita que el teclado tape el contenido
+      backgroundColor: const Color(0xFFF2F6FC),
+      body: SafeArea(
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 30,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildHeader(),
+                          const SizedBox(height: 40),
+                          _buildLoginForm(),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -57,223 +119,197 @@ class LoginView extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 100,
-          height: 100,
+          height: 90,
+          width: 90,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0066FF), Color(0xFF00C2FF)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: Colors.blue.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          child: Icon(Icons.person, size: 50, color: Colors.blue.shade700),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          "Bienvenido",
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
+          child: const Icon(
+            Icons.receipt_long_rounded,
             color: Colors.white,
+            size: 48,
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          "Bienvenido a FcturASA",
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF003366),
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          "Inicia sesión en tu cuenta",
-          style: TextStyle(fontSize: 16, color: Colors.white70),
+        Text(
+          "Accede con tu cuenta para continuar",
+          style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
         ),
       ],
     );
   }
 
-  Widget _buildLoginForm(BuildContext context) {
-    return Card(
-      elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      shadowColor: Colors.black.withOpacity(0.3),
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Form(
-          key: controller.formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildUserField(),
-              const SizedBox(height: 20),
-              _buildPasswordField(),
-              const SizedBox(height: 16),
-              _buildForgotPasswordButton(),
-              const SizedBox(height: 24),
-              _buildLoginButton(),
-            ],
+  Widget _buildLoginForm() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blueGrey.withOpacity(0.15),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
+        ],
+      ),
+      child: Form(
+        key: widget.controller.formKey,
+        child: Column(
+          children: [
+            _buildUserField(),
+            const SizedBox(height: 20),
+            _buildPasswordField(),
+            const SizedBox(height: 30),
+            _buildLoginButton(),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildUserField() {
-    return Builder(
-      builder: (context) => TextFormField(
-        controller: controller.userController,
-        style: const TextStyle(fontSize: 16),
-        decoration: InputDecoration(
-          labelText: "Usuario",
-          labelStyle: TextStyle(
-            color: Colors.grey.shade600,
-            fontWeight: FontWeight.w500,
-          ),
-          prefixIcon: Container(
-            margin: const EdgeInsets.all(8),
-            child: Icon(
-              Icons.person_outline_rounded,
-              color: Colors.blue.shade700,
-              size: 24,
-            ),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.grey.shade50,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
+    return TextFormField(
+      controller: widget.controller.userController,
+      focusNode: _userFocusNode,
+      keyboardType: TextInputType.number,
+      style: const TextStyle(fontSize: 16),
+      decoration: InputDecoration(
+        labelText: "Usuario o Email",
+        labelStyle: TextStyle(
+          color: _isUserFocused
+              ? const Color(0xFF0066FF)
+              : Colors.grey.shade700,
         ),
-        validator: controller.validateUser,
-        textInputAction: TextInputAction.next,
-        onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
+        prefixIcon: Icon(
+          Icons.person_outline_rounded,
+          color: _isUserFocused
+              ? const Color(0xFF0066FF)
+              : Colors.grey.shade600,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF0066FF), width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
       ),
+      validator: widget.controller.validateUser,
+      textInputAction: TextInputAction.next,
+      onFieldSubmitted: (_) =>
+          FocusScope.of(context).requestFocus(_passwordFocusNode),
     );
   }
 
   Widget _buildPasswordField() {
     return TextFormField(
-      controller: controller.passwordController,
-      obscureText: controller.obscurePassword,
+      controller: widget.controller.passwordController,
+      focusNode: _passwordFocusNode,
+      obscureText: widget.controller.obscurePassword,
       style: const TextStyle(fontSize: 16),
       decoration: InputDecoration(
         labelText: "Contraseña",
         labelStyle: TextStyle(
-          color: Colors.grey.shade600,
-          fontWeight: FontWeight.w500,
+          color: _isPasswordFocused
+              ? const Color(0xFF0066FF)
+              : Colors.grey.shade700,
         ),
-        prefixIcon: Container(
-          margin: const EdgeInsets.all(8),
-          child: Icon(
-            Icons.lock_outline_rounded,
-            color: Colors.blue.shade700,
-            size: 24,
+        prefixIcon: Icon(
+          Icons.lock_outline_rounded,
+          color: _isPasswordFocused
+              ? const Color(0xFF0066FF)
+              : Colors.grey.shade600,
+        ),
+        suffixIcon: IconButton(
+          icon: Icon(
+            widget.controller.obscurePassword
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            color: _isPasswordFocused
+                ? const Color(0xFF0066FF)
+                : Colors.grey.shade600,
           ),
+          onPressed: () => setState(() {
+            widget.controller.togglePasswordVisibility();
+          }),
         ),
-        suffixIcon: Container(
-          margin: const EdgeInsets.all(8),
-          child: IconButton(
-            icon: Icon(
-              controller.obscurePassword
-                  ? Icons.visibility_off_rounded
-                  : Icons.visibility_rounded,
-              color: Colors.grey.shade600,
-              size: 24,
-            ),
-            onPressed: controller.togglePasswordVisibility,
-          ),
-        ),
-        border: OutlineInputBorder(
+        enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF0066FF), width: 2),
         ),
         filled: true,
         fillColor: Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
       ),
-      validator: controller.validatePassword,
+      validator: widget.controller.validatePassword,
       textInputAction: TextInputAction.done,
-      onFieldSubmitted: (_) => onLogin(),
-    );
-  }
-
-  Widget _buildForgotPasswordButton() {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: TextButton(
-        onPressed: onForgotPassword,
-        style: TextButton.styleFrom(padding: EdgeInsets.zero),
-        child: Text(
-          "¿Olvidaste tu contraseña?",
-          style: TextStyle(
-            color: Colors.blue.shade700,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
+      onFieldSubmitted: (_) => _onLoginPressed(),
     );
   }
 
   Widget _buildLoginButton() {
+    final isValid =
+        widget.controller.userController.text.isNotEmpty &&
+        widget.controller.passwordController.text.isNotEmpty;
+
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue.shade700,
-          foregroundColor: Colors.white,
+          backgroundColor: isValid
+              ? const Color(0xFF0066FF)
+              : Colors.grey.shade400,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          elevation: 2,
-          shadowColor: Colors.blue.shade300,
+          elevation: isValid ? 6 : 0,
         ),
-        onPressed: controller.isLoading ? null : onLogin,
-        child: controller.isLoading
+        onPressed: (isValid && !widget.controller.isLoading)
+            ? _onLoginPressed
+            : null,
+        child: widget.controller.isLoading
             ? const SizedBox(
-                width: 24,
                 height: 24,
+                width: 24,
                 child: CircularProgressIndicator(
-                  strokeWidth: 3,
+                  strokeWidth: 2.5,
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
             : const Text(
-                "Ingresar",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                "Iniciar sesión",
+                style: TextStyle(fontSize: 18, color: Colors.white),
               ),
       ),
-    );
-  }
-
-  Widget _buildRegisterSection() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "¿No tienes cuenta?",
-          style: TextStyle(color: Colors.white.withOpacity(0.9)),
-        ),
-        TextButton(
-          onPressed: onRegister,
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-          ),
-          child: const Text(
-            "Regístrate",
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

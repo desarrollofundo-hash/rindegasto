@@ -1,5 +1,8 @@
+// Modelo generado para las auditorías
+// Nombre de archivo mantiene la ortografía usada en los imports del proyecto: auditioria_model.dart
+
 class AuditoriaModel {
-  final int id;
+  final int idAd;
   final int idInf;
   final int idUser;
   final String? dni;
@@ -10,48 +13,95 @@ class AuditoriaModel {
   final String? obs;
   final String? estadoActual;
   final String? estado;
-  final String? fecCre;
-  final int? useReg;
+  final DateTime? fecCre;
+  final int useReg;
   final String? hostname;
-  final String? fecEdit;
-  final int? useEdit;
-  final int? useElim;
-  final int? cantidad;
-  final double? total;
-  final int? cantidadAprobado;
-  final double? totalAprobado;
-  final int? cantidadDesaprobado;
-  final double? totalDesaprobado;
+  final DateTime? fecEdit;
+  final int useEdit;
+  final int useElim;
+  final int cantidad;
+  final double total;
+  final int cantidadAprobado;
+  final double totalAprobado;
+  final int cantidadDesaprobado;
+  final double totalDesaprobado;
 
   AuditoriaModel({
-    required this.id,
+    required this.idAd,
     required this.idInf,
     required this.idUser,
-    this.dni,
-    this.ruc,
-    this.titulo,
-    this.nota,
-    this.politica,
-    this.obs,
-    this.estadoActual,
-    this.estado,
-    this.fecCre,
-    this.useReg,
-    this.hostname,
-    this.fecEdit,
-    this.useEdit,
-    this.useElim,
-    this.cantidad,
-    this.total,
-    this.cantidadAprobado,
-    this.totalAprobado,
-    this.cantidadDesaprobado,
-    this.totalDesaprobado,
+    required this.dni,
+    required this.ruc,
+    required this.titulo,
+    required this.nota,
+    required this.politica,
+    required this.obs,
+    required this.estadoActual,
+    required this.estado,
+    required this.fecCre,
+    required this.useReg,
+    required this.hostname,
+    required this.fecEdit,
+    required this.useEdit,
+    required this.useElim,
+    required this.cantidad,
+    required this.total,
+    required this.cantidadAprobado,
+    required this.totalAprobado,
+    required this.cantidadDesaprobado,
+    required this.totalDesaprobado,
   });
 
-  Map<String, dynamic> toMap() {
+  factory AuditoriaModel.fromJson(Map<String, dynamic> json) {
+    DateTime? _parseDate(dynamic v) {
+      if (v == null) return null;
+      if (v is DateTime) return v;
+      return DateTime.tryParse(v.toString());
+    }
+
+    int _i(dynamic v) {
+      if (v == null) return 0;
+      if (v is int) return v;
+      return int.tryParse(v.toString()) ?? 0;
+    }
+
+    double _d(dynamic v) {
+      if (v == null) return 0.0;
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0.0;
+    }
+
+    return AuditoriaModel(
+      idAd: _i(json['idAd']),
+      idInf: _i(json['idInf']),
+      idUser: _i(json['idUser']),
+      dni: json['dni']?.toString(),
+      ruc: json['ruc']?.toString(),
+      titulo: json['titulo']?.toString(),
+      nota: json['nota']?.toString(),
+      politica: json['politica']?.toString(),
+      obs: json['obs']?.toString(),
+      estadoActual: json['estadoActual']?.toString(),
+      estado: json['estado']?.toString(),
+      fecCre: _parseDate(json['fecCre']),
+      useReg: _i(json['useReg']),
+      hostname: json['hostname']?.toString(),
+      fecEdit: _parseDate(json['fecEdit']),
+      useEdit: _i(json['useEdit']),
+      useElim: _i(json['useElim']),
+      cantidad: _i(json['cantidad']),
+      total: _d(json['total']),
+      cantidadAprobado: _i(json['cantidadAprobado']),
+      totalAprobado: _d(json['totalAprobado']),
+      cantidadDesaprobado: _i(json['cantidadDesaprobado']),
+      totalDesaprobado: _d(json['totalDesaprobado']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      'idAd': idAd,
       'idInf': idInf,
       'idUser': idUser,
       'dni': dni,
@@ -62,10 +112,10 @@ class AuditoriaModel {
       'obs': obs,
       'estadoActual': estadoActual,
       'estado': estado,
-      'fecCre': fecCre,
+      'fecCre': fecCre?.toUtc().toIso8601String(),
       'useReg': useReg,
       'hostname': hostname,
-      'fecEdit': fecEdit,
+      'fecEdit': fecEdit?.toUtc().toIso8601String(),
       'useEdit': useEdit,
       'useElim': useElim,
       'cantidad': cantidad,
@@ -75,85 +125,5 @@ class AuditoriaModel {
       'cantidadDesaprobado': cantidadDesaprobado,
       'totalDesaprobado': totalDesaprobado,
     };
-  }
-
-  factory AuditoriaModel.fromJson(Map<String, dynamic> map) {
-    return AuditoriaModel(
-      id: map['id'],
-      idInf: map['idInf'],
-      idUser: map['idUser'],
-      dni: map['dni'],
-      ruc: map['ruc'],
-      titulo: map['titulo'],
-      nota: map['nota'],
-      politica: map['politica'],
-      obs: map['obs'],
-      estadoActual: map['estadoActual'],
-      estado: map['estado'],
-      fecCre: map['fecCre'],
-      useReg: map['useReg'],
-      hostname: map['hostname'],
-      fecEdit: map['fecEdit'],
-      useEdit: map['useEdit'],
-      useElim: map['useElim'],
-      cantidad: map['cantidad'],
-      total: map['total'],
-      cantidadAprobado: map['cantidadAprobado'],
-      totalAprobado: map['totalAprobado'],
-      cantidadDesaprobado: map['cantidadDesaprobado'],
-      totalDesaprobado: map['totalDesaprobado'],
-    );
-  }
-
-  AuditoriaModel copyWith({
-    int? id,
-    int? idInf,
-    int? idUser,
-    String? dni,
-    String? ruc,
-    String? titulo,
-    String? nota,
-    String? politica,
-    String? obs,
-    String? estadoActual,
-    String? estado,
-    String? fecCre,
-    int? useReg,
-    String? hostname,
-    String? fecEdit,
-    int? useEdit,
-    int? useElim,
-    int? cantidad,
-    double? total,
-    int? cantidadAprobado,
-    double? totalAprobado,
-    int? cantidadDesaprobado,
-    double? totalDesaprobado,
-  }) {
-    return AuditoriaModel(
-      id: id ?? this.id,
-      idInf: idInf ?? this.idInf,
-      idUser: idUser ?? this.idUser,
-      dni: dni ?? this.dni,
-      ruc: ruc ?? this.ruc,
-      titulo: titulo ?? this.titulo,
-      nota: nota ?? this.nota,
-      politica: politica ?? this.politica,
-      obs: obs ?? this.obs,
-      estadoActual: estadoActual ?? this.estadoActual,
-      estado: estado ?? this.estado,
-      fecCre: fecCre ?? this.fecCre,
-      useReg: useReg ?? this.useReg,
-      hostname: hostname ?? this.hostname,
-      fecEdit: fecEdit ?? this.fecEdit,
-      useEdit: useEdit ?? this.useEdit,
-      useElim: useElim ?? this.useElim,
-      cantidad: cantidad ?? this.cantidad,
-      total: total ?? this.total,
-      cantidadAprobado: cantidadAprobado ?? this.cantidadAprobado,
-      totalAprobado: totalAprobado ?? this.totalAprobado,
-      cantidadDesaprobado: cantidadDesaprobado ?? this.cantidadDesaprobado,
-      totalDesaprobado: totalDesaprobado ?? this.totalDesaprobado,
-    );
   }
 }

@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flu2/models/auditioria_model.dart';
+import 'package:flu2/models/reporte_informe_detalle.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/reporte_model.dart';
@@ -8,13 +10,15 @@ import '../models/dropdown_option.dart';
 import 'connectivity_helper.dart';
 
 class ApiService {
+  /// Base URL de la API
   static const String baseUrl = 'http://190.119.200.124:45490';
   static const Duration timeout = Duration(seconds: 60);
 
   final http.Client client;
 
+  // APISERVICE CLIENTE
   ApiService({http.Client? client}) : client = client ?? http.Client();
-
+  //RENDICION GASTO
   Future<List<Reporte>> getReportesRendicionGasto({
     required String id,
     required String idrend,
@@ -75,6 +79,15 @@ class ApiService {
           throw Exception('⚠️ Respuesta vacía del servidor');
         }
 
+        // Loguear un preview del body para depuración (máx 2000 chars)
+        try {
+          final raw = response.body;
+          final preview = raw.length > 2000 ? raw.substring(0, 2000) + '... [truncated]' : raw;
+          debugPrint('📄 Response body preview (first 2000 chars): $preview');
+        } catch (e) {
+          debugPrint('⚠️ No se pudo imprimir preview del body: $e');
+        }
+
         try {
           final List<dynamic> jsonData = json.decode(response.body);
           /*   debugPrint(
@@ -124,10 +137,34 @@ class ApiService {
           throw Exception('Error al procesar respuesta del servidor: $e');
         }
       } else {
-        /*      debugPrint('❌ Status ${response.statusCode}');
-        debugPrint('📄 Response body: ${response.body}'); */
+        debugPrint('❌ Status ${response.statusCode}');
+        debugPrint('📄 Response body (server error): ${response.body}');
+
+        // Intentar extraer un mensaje útil del body si viene en JSON
+        String serverMessage = response.reasonPhrase ?? '';
+        try {
+          final decoded = json.decode(response.body);
+          if (decoded is Map && decoded.containsKey('message')) {
+            serverMessage = decoded['message'].toString();
+          } else if (decoded is Map && decoded.containsKey('error')) {
+            serverMessage = decoded['error'].toString();
+          } else if (decoded is String) {
+            serverMessage = decoded;
+          }
+        } catch (_) {
+          // body no JSON, dejar serverMessage tal cual
+        }
+
+        // Añadir parte del body (si existe) para facilitar depuración en UI
+        final rawBody = response.body;
+        final preview = rawBody.isEmpty
+            ? ''
+            : (rawBody.length > 800
+                ? rawBody.substring(0, 800) + '... [truncated]'
+                : rawBody);
+
         throw Exception(
-          'Error del servidor (${response.statusCode}): ${response.reasonPhrase}',
+          'Error del servidor (${response.statusCode}): ${serverMessage.isNotEmpty ? serverMessage : response.reasonPhrase}. BodyPreview: $preview',
         );
       }
     } on SocketException catch (e) {
@@ -150,6 +187,7 @@ class ApiService {
     }
   }
 
+  //RENDICION INFORME
   Future<List<ReporteInforme>> getReportesRendicionInforme({
     required String id,
     required String idrend,
@@ -285,8 +323,9 @@ class ApiService {
     }
   }
 
-  Future<List<ReporteInforme>> getRendicionAuditoria({
-    required String id,
+  //RENDICION AUDITORIA
+  Future<List<AuditoriaModel>> getRendicionAuditoria({
+   required String idinf,
     required String idad,
     required String user,
     required String ruc,
@@ -315,8 +354,14 @@ class ApiService {
 
       // Construir la URL con los parámetros dinámicos
       final uri = Uri.parse('$baseUrl/reporte/rendicionauditoria').replace(
-        queryParameters: {'id': id, 'idad': idad, 'user': user, 'ruc': ruc},
+      queryParameters: {
+          'idinf': idinf,
+          'idad': idad,
+          'user': user,
+          'ruc': ruc,
+        },
       );
+      debugPrint('📍 Request URL: $uri');
       /* 
       debugPrint('📡 Realizando petición HTTP GET...');
       debugPrint('🌍 URL final: $uri');
@@ -356,12 +401,12 @@ class ApiService {
             return [];
           }
 
-          final reportes = <ReporteInforme>[];
+          final reportes = <AuditoriaModel>[];
           int errores = 0;
 
           for (int i = 0; i < jsonData.length; i++) {
             try {
-              final reporte = ReporteInforme.fromJson(jsonData[i]);
+              final reporte = AuditoriaModel.fromJson(jsonData[i]);
               reportes.add(reporte);
             } catch (e) {
               errores++;
@@ -420,8 +465,9 @@ class ApiService {
     }
   }
 
-  Future<List<ReporteInforme>> getReportesRendicionInforme_Detalle({
-    required String idrend,
+  // REPORTES RENDICION INFORME DETALLE
+  Future<List<ReporteInformeDetalle>> getReportesRendicionInforme_Detalle({
+    required String idinf,
   }) async {
     /*     debugPrint('🚀 Iniciando petición a API...');
     debugPrint('📍 URL base: $baseUrl/reporte/rendiciongasto');
@@ -448,7 +494,7 @@ class ApiService {
       // Construir la URL con los parámetros dinámicos
       final uri = Uri.parse(
         '$baseUrl/reporte/rendicioninforme_detalle',
-      ).replace(queryParameters: {'idrend': idrend});
+      ).replace(queryParameters: {'idinf': idinf});
       /* 
       debugPrint('📡 Realizando petición HTTP GET...');
       debugPrint('🌍 URL final: $uri');
@@ -488,12 +534,12 @@ class ApiService {
             return [];
           }
 
-          final reportes = <ReporteInforme>[];
+          final reportes = <ReporteInformeDetalle>[];
           int errores = 0;
 
           for (int i = 0; i < jsonData.length; i++) {
             try {
-              final reporte = ReporteInforme.fromJson(jsonData[i]);
+              final reporte = ReporteInformeDetalle.fromJson(jsonData[i]);
               reportes.add(reporte);
             } catch (e) {
               errores++;
@@ -552,6 +598,7 @@ class ApiService {
     }
   }
 
+  // DROPDOWNS OPCIONES POLITICAS
   /// Método genérico para obtener opciones de dropdown desde la API
   /// [endpoint] - La ruta del endpoint (ej: 'categorias', 'politicas', 'usuarios')
   Future<List<DropdownOption>> getDropdownOptionsPolitica(
@@ -644,6 +691,7 @@ class ApiService {
     }
   }
 
+  // DROPDOWNS OPCIONES CATEGORIAS
   /// Método genérico para obtener opciones de dropdown desde la API
   /// [endpoint] - La ruta del endpoint (ej: 'categorias', 'politicas', 'usuarios')
   Future<List<DropdownOption>> getDropdownOptionsCategoria(
@@ -736,20 +784,18 @@ class ApiService {
     }
   }
 
-  /// Métodos específicos para diferentes tipos de dropdown
-  /// Puedes personalizar estos endpoints según tu API
-
-  /// Obtener categorías
+  /// ==================== ENDPOINTS ESPECÍFICOS DE DROPDOWNS ====================
+  /// OBTENER CATEGORIAS
   Future<List<DropdownOption>> getCategorias() async {
     return await getDropdownOptionsCategoria('categoria');
   }
 
-  /// Obtener políticas
+  /// OBTENER POLITICAS
   Future<List<DropdownOption>> getPoliticas() async {
     return await getDropdownOptionsPolitica('politicas');
   }
 
-  /// Obtener usuarios
+  // OBTENER USUARIOS
   Future<List<DropdownOption>> getUsuarios() async {
     return await getDropdownOptionsPolitica('usuarios');
   }
@@ -1051,6 +1097,7 @@ class ApiService {
     }
   }
 
+  //-------------------SAVE RENDICION GASTO------------------------//
   /// Guardar factura/rendición de gasto
   /// [facturaData] - Map con los datos de la factura a guardar
   /// Retorna el idRend generado si se guardó exitosamente, null en caso contrario
@@ -1196,6 +1243,10 @@ class ApiService {
         }
       } else {
         debugPrint('❌ Error del servidor: ${response.statusCode}');
+        debugPrint('📄 Response headers: ${response.headers}');
+        debugPrint(
+          '📍 Request URL: ${Uri.parse('$baseUrl/saveupdate/saverendicionauditoria')}',
+        );
         throw Exception(
           'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
         );
@@ -1217,6 +1268,7 @@ class ApiService {
     }
   }
 
+  //-------------------VERIFY RECORD EXISTS------------------------//
   /// Verificar si un registro con idRend específico existe en la base de datos
   /// [idRend] - ID del registro a verificar
   /// Retorna true si existe, false si no existe
@@ -1282,6 +1334,7 @@ class ApiService {
     }
   }
 
+  //-------------------FIND FACTURA BY UNIQUE DATA------------------------//
   /// Buscar ID de factura por datos únicos (RUC, serie, número)
   /// [ruc] - RUC del emisor
   /// [serie] - Serie del comprobante
@@ -1470,9 +1523,10 @@ class ApiService {
     }
   }
 
+  //-------------------SAVE RENDICION GASTO EVIDENCIA------------------------//
   /// Guardar factura/rendición de gasto
   /// [facturaEvidenciaData] - Map con los datos de la factura a guardar
-  /// Retorna true si se guardó exitosamente, false en caso contrario
+  /// SAVE RENDICION GASTO EVIDENCIA
   Future<bool> saveRendicionGastoEvidencia(
     Map<String, dynamic> facturaEvidenciaData,
   ) async {
@@ -1613,11 +1667,11 @@ class ApiService {
     }
   }
 
-  /// Autenticar usuario con credenciales
+  //-------------------LOGIN CREDENCIAL------------------------//
   /// [usuario] - Nombre de usuario o DNI
   /// [contrasena] - Contraseña del usuario
   /// [app] - ID de la aplicación (por defecto 12)
-  /// Retorna el Map con los datos del usuario si el login es exitoso
+  /// LOGIN CREDENCIAL - INGRESO AL LOGIN
   Future<Map<String, dynamic>> loginCredencial({
     required String usuario,
     required String contrasena,
@@ -1726,9 +1780,9 @@ class ApiService {
     }
   }
 
-  /// Obtener empresas asociadas a un usuario
+  //-------------------GET USER COMPANIES------------------------//
   /// [userId] - ID del usuario para consultar sus empresas
-  /// Retorna lista de Maps con los datos de las empresas del usuario
+  /// GET USUARIO COMPANIES
   Future<List<Map<String, dynamic>>> getUserCompanies(int userId) async {
     debugPrint('🚀 Obteniendo empresas del usuario...');
     debugPrint('📍 URL: $baseUrl/reporte/usuarioconsumidor');
@@ -1820,9 +1874,9 @@ class ApiService {
     }
   }
 
-  /// Método específico para guardar gastos de movilidad
+  //-------------------SAVE RENDICION GASTOMOVILIDAD------------------------//
   /// [movilidadData] - Map con los datos del gasto de movilidad a guardar
-  /// Retorna true si se guardó exitosamente, false en caso contrario
+  /// SAVE RENDICION GASTO MOVILIDAD- GUARDAR GASTO MOVILIDAD
   Future<bool> saveRendicionGastoMovilidad(
     Map<String, dynamic> movilidadData,
   ) async {
@@ -1872,6 +1926,10 @@ class ApiService {
         return true;
       } else {
         debugPrint('❌ Error del servidor: ${response.statusCode}');
+        debugPrint('📄 Response headers: ${response.headers}');
+        debugPrint(
+          '📍 Request URL: ${Uri.parse('$baseUrl/saveupdate/saverendicionauditoria_detalle')}',
+        );
         throw Exception(
           'Error del servidor: ${response.statusCode}\nRespuesta: ${response.body}',
         );
@@ -1897,9 +1955,9 @@ class ApiService {
     }
   }
 
-  /// Guardar informe de rendición
+  //-------------------SAVE RENDICION INFORME------------------------//
   /// [informeData] - Map con los datos del informe a guardar
-  /// Retorna el IdInf generado si se guardó exitosamente, null en caso contrario
+  /// SAVE RENDICION INFORME - GUARDAR INFORME RENDICION
   Future<int?> saveRendicionInforme(Map<String, dynamic> informeData) async {
     debugPrint('🚀 Guardando informe de rendición...');
     debugPrint('📍 URL: $baseUrl/saveupdate/saverendicioninforme');
@@ -2023,9 +2081,9 @@ class ApiService {
     }
   }
 
-  /// Guardar detalle de informe de rendición
+  //-------------------SAVE RENDICION INFORME DETALLE------------------------//
   /// [informeDetalleData] - Map con los datos del detalle del informe a guardar
-  /// Retorna true si se guardó exitosamente, false en caso contrario
+  /// SAVE RENDICION INFORME DETALLE - GUARDAR DETALLE INFORME RENDICION
   Future<bool> saveRendicionInformeDetalle(
     Map<String, dynamic> informeDetalleData,
   ) async {
@@ -2104,6 +2162,7 @@ class ApiService {
     }
   }
 
+  //-------------------UPDATE RENDICION INFORME DETALLE------------------------//
   Future<bool> saveupdateRendicionGasto(
     Map<String, dynamic> informeDetalleData,
   ) async {
@@ -2179,6 +2238,99 @@ class ApiService {
       }
       debugPrint('💥 Error no manejado al guardar detalle informe: $e');
       throw Exception('Error inesperado al guardar detalle informe: $e');
+    }
+  }
+
+  //------------------- GUARDAR RENDICIÓN AUDITORÍA (CABECERA) ------------------------//
+  Future<int?> saveRendicionAuditoria(
+    Map<String, dynamic> informeDetalleData,
+  ) async {
+    debugPrint('🚀 Guardando cabecera de rendición auditoría...');
+    debugPrint('📍 URL: $baseUrl/saveupdate/saverendicionauditoria');
+    debugPrint('📦 Datos a enviar: $informeDetalleData');
+
+    try {
+      final uri = Uri.parse('$baseUrl/saveupdate/saverendicionauditoria');
+      final encodedBody = json.encode([informeDetalleData]);
+
+      final response = await client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Accept': 'application/json',
+            },
+            body: encodedBody,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      debugPrint('📊 Respuesta - Status: ${response.statusCode}');
+      debugPrint('📄 Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = json.decode(response.body);
+
+        if (decoded['success'] == true) {
+          debugPrint('✅ Cabecera guardada correctamente');
+          return decoded['idAd']; // ID retornado por el backend
+        } else {
+          throw Exception('❌ Error del servidor: ${decoded['message']}');
+        }
+      } else {
+        throw Exception(
+          '❌ Error del servidor (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      debugPrint('💥 Error en saveRendicionAuditoria: $e');
+      rethrow;
+    }
+  }
+
+  //------------------- GUARDAR RENDICIÓN AUDITORÍA DETALLE ------------------------//
+  Future<bool> saveRendicionAuditoriaDetalle(
+    Map<String, dynamic> informeDetalleData,
+  ) async {
+    debugPrint('🚀 Guardando detalle de rendición auditoría...');
+    debugPrint('📍 URL: $baseUrl/saveupdate/saverendicionauditoria_detalle');
+    debugPrint('📦 Datos a enviar: $informeDetalleData');
+
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/saveupdate/saverendicionauditoria_detalle',
+      );
+      final encodedBody = json.encode([informeDetalleData]);
+
+      final response = await client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Accept': 'application/json',
+            },
+            body: encodedBody,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      debugPrint('📊 Respuesta detalle - Status: ${response.statusCode}');
+      debugPrint('📄 Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = json.decode(response.body);
+        if (decoded['success'] == true) {
+          debugPrint('✅ Detalle guardado correctamente');
+          return true;
+        } else {
+          throw Exception('❌ Error del servidor: ${decoded['message']}');
+        }
+      } else {
+        throw Exception(
+          '❌ Error del servidor (${response.statusCode}): ${response.body}',
+        );
+      }
+    } catch (e) {
+      debugPrint('💥 Error en saveRendicionAuditoriaDetalle: $e');
+      rethrow;
     }
   }
 

@@ -1,18 +1,14 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart' hide TextDirection;
-import 'package:pdf/widgets.dart' as pw;
-import 'package:pdf/pdf.dart';
 import '../models/dropdown_option.dart';
 import '../services/api_service.dart';
 import '../services/user_service.dart';
 import '../services/company_service.dart';
+import 'nuevo_gasto_logic.dart';
 
 /// Modal para crear un nuevo gasto con todos los campos personalizados
 class NuevoGastoModal extends StatefulWidget {
@@ -34,6 +30,7 @@ class NuevoGastoModal extends StatefulWidget {
 class _NuevoGastoModalState extends State<NuevoGastoModal> {
   final _formKey = GlobalKey<FormState>();
   final ApiService _apiService = ApiService();
+  final NuevoGastoLogic _logic = NuevoGastoLogic();
 
   // Controladores para todos los campos
   late TextEditingController _proveedorController;
@@ -167,8 +164,9 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
     });
 
     try {
-      final categorias = await _apiService.getRendicionCategorias(
-        politica: widget.politicaSeleccionada.value,
+      final categorias = await _logic.fetchCategorias(
+        _apiService,
+        widget.politicaSeleccionada.value,
       );
 
       setState(() {
@@ -191,7 +189,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
     });
 
     try {
-      final tiposGasto = await _apiService.getTiposGasto();
+      final tiposGasto = await _logic.fetchTiposGasto(_apiService);
 
       setState(() {
         _tiposGasto = tiposGasto;
@@ -207,50 +205,12 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
 
   /// Comprimir imagen si es mayor a 1MB
   Future<File?> _compressImage(File file) async {
-    final fileSize = await file.length();
-    if (fileSize <= 1024 * 1024) {
-      return file; // No necesita compresión
-    }
-
-    final dir = await getTemporaryDirectory();
-    final targetPath =
-        '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-    final result = await FlutterImageCompress.compressAndGetFile(
-      file.absolute.path,
-      targetPath,
-      quality: 85, // Ajusta la calidad según sea necesario
-      minWidth: 1024,
-      minHeight: 1024,
-    );
-
-    if (result != null) {
-      // Convertir XFile a File
-      return File(result.path);
-    }
-    return null;
+    return await _logic.compressImage(file);
   }
 
   /// Convertir imagen a PDF
   Future<File?> _convertImageToPdf(File imageFile) async {
-    final pdf = pw.Document();
-    final image = pw.MemoryImage(imageFile.readAsBytesSync());
-
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        build: (pw.Context context) {
-          return pw.Center(child: pw.Image(image));
-        },
-      ),
-    );
-
-    final output = await getTemporaryDirectory();
-    final file = File(
-      "${output.path}/${DateTime.now().millisecondsSinceEpoch}.pdf",
-    );
-    await file.writeAsBytes(await pdf.save());
-    return file;
+    return await _logic.convertImageToPdf(imageFile);
   }
 
   /// Seleccionar archivo (imagen o PDF)
@@ -405,141 +365,33 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
           throw Exception('Error: Usuario o empresa no seleccionados');
         }
 
-        // Preparar datos del gasto según la estructura de la API
-        final gastoData = <String, dynamic>{
-          // Campos requeridos por la API según factura_modal_peru.dart
-          "idUser": UserService().currentUserCode,
-          "dni": UserService().currentUserDni,
-          "politica": _politicaController.text.length > 80
-              ? _politicaController.text.substring(0, 80)
-              : _politicaController.text,
-          "categoria": _categoriaController.text.isEmpty
-              ? "GENERAL"
-              : (_categoriaController.text.length > 80
-                    ? _categoriaController.text.substring(0, 80)
-                    : _categoriaController.text),
+        // Preparar datos del gasto usando la lógica separada
+        final gastoData = _logic.prepareGastoData(
+          politica: _politicaController.text,
+          categoria: _categoriaController.text,
+          tipoGasto: _tipoGastoController.text,
+          ruc: _rucController.text,
+          tipoComprobante: _tipoComprobanteController.text,
+          serie: _serieController.text,
+          numero: _numeroController.text,
+          igv: _igvController.text,
+          fecha: fechaSQL,
+          total: _totalController.text,
+          moneda: _monedaController.text,
+          nota: _notaController.text,
+        );
 
-          "tipoGasto": _tipoGastoController.text.isEmpty
-              ? "GASTO GENERAL"
-              : (_tipoGastoController.text.length > 80
-                    ? _tipoGastoController.text.substring(0, 80)
-                    : _tipoGastoController.text),
-          "ruc": _rucController.text.isEmpty
-              ? ""
-              : (_rucController.text.length > 80
-                    ? _rucController.text.substring(0, 80)
-                    : _rucController.text),
-          "proveedor": "",
-          "tipoCombrobante": _tipoComprobanteController.text.isEmpty
-              ? ""
-              : (_tipoComprobanteController.text.length > 180
-                    ? _tipoComprobanteController.text.substring(0, 180)
-                    : _tipoComprobanteController.text),
-          "serie": _serieController.text.isEmpty
-              ? ""
-              : (_serieController.text.length > 80
-                    ? _serieController.text.substring(0, 80)
-                    : _serieController.text),
-          "numero": _numeroController.text.isEmpty
-              ? ""
-              : (_numeroController.text.length > 80
-                    ? _numeroController.text.substring(0, 80)
-                    : _numeroController.text),
-          "igv": double.tryParse(_igvController.text) ?? 0.0,
-          "fecha": fechaSQL,
-          "total": double.tryParse(_totalController.text) ?? 0.0,
-          "moneda": _monedaController.text.isEmpty
-              ? "PEN"
-              : (_monedaController.text.length > 80
-                    ? _monedaController.text.substring(0, 80)
-                    : _monedaController.text),
-          "rucCliente": CompanyService().currentCompany?.ruc ?? "",
-          "desEmp": CompanyService().currentCompany?.empresa ?? '',
-          "desSed": "",
-          "idCuenta": "",
-          "consumidor": "",
-          "regimen": "",
-          "destino": "BORRADOR",
-          "glosa": _notaController.text.length > 480
-              ? _notaController.text.substring(0, 480)
-              : _notaController.text,
-          "motivoViaje": "",
-          "lugarOrigen": "",
-          "lugarDestino": "",
-          "tipoMovilidad": "",
-          "obs": _notaController.text.length > 1000
-              ? _notaController.text.substring(0, 1000)
-              : _notaController.text,
-          "estado": "S", // Solo 1 carácter como requiere la BD
-          "fecCre": DateTime.now().toIso8601String(),
-          "useReg": UserService().currentUserCode, // Campo obligatorio
-          "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
-          "fecEdit": DateTime.now().toIso8601String(),
-          "useEdit": 0,
-          "useElim": 0,
-        };
-
-        // Validaciones específicas
-        if (gastoData['total'] <= 0) {
-          throw Exception('El monto debe ser mayor a 0');
-        }
-
-        if (gastoData['razon'].toString().length > 100) {
-          gastoData['razon'] = gastoData['razon'].toString().substring(0, 100);
-        }
-
-        // Enviar a la API
-        final apiService = ApiService();
-
-        // 🚨 IMPORTANTE: Si saverendiciongastoevidencia es el que GENERA el idRend,
-        // entonces necesitamos cambiar el orden de los APIs
-
-        // ✅ PRIMER API: Guardar datos principales de la factura (genera idRend automáticamente)
-        // Nota: Verificar cuál endpoint realmente genera el idRend autoincrementable
-        final idRend = await apiService.saveRendicionGasto(gastoData);
+        // Enviar a la API y guardar evidencia si existe (la lógica interna maneja la evidencia)
+        final idRend = await _logic.saveGastoWithEvidencia(
+          _apiService,
+          gastoData,
+          _selectedFile,
+        );
 
         if (idRend == null) {
           throw Exception(
             'No se pudo guardar la factura principal o no se obtuvo el ID autogenerado',
           );
-        }
-
-        debugPrint('🆔 ID autogenerado obtenido: $idRend');
-        debugPrint('📋 Preparando datos de evidencia con el ID generado...');
-
-        // ✅ SEGUNDO API: Guardar evidencia/archivo usando el idRend del primer API
-        if (_selectedFile != null) {
-          try {
-            // Convertir archivo a base64 para la API
-            final bytes = await _selectedFile!.readAsBytes();
-            final base64String = base64Encode(bytes);
-
-            final facturaDataEvidencia = {
-              "idRend": idRend, // ✅ Usar el ID autogenerado del API principal
-              "evidencia": base64String,
-              "obs": _notaController.text.length > 1000
-                  ? _notaController.text.substring(0, 1000)
-                  : _notaController.text,
-              "estado": "S", // Solo 1 carácter como requiere la BD
-              "fecCre": DateTime.now().toIso8601String(),
-              "useReg": UserService().currentUserCode, // Campo obligatorio
-              "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
-              "fecEdit": DateTime.now().toIso8601String(),
-              "useEdit": 0,
-              "useElim": 0,
-            };
-
-            // Usar el nuevo servicio API para guardar la evidencia
-            final successEvidencia = await apiService
-                .saveRendicionGastoEvidencia(facturaDataEvidencia);
-
-            if (!successEvidencia) {
-              debugPrint('⚠️ Advertencia: No se pudo guardar la evidencia');
-            }
-          } catch (e) {
-            debugPrint('⚠️ Error al guardar evidencia: $e');
-            // No fallar todo por la evidencia
-          }
         }
 
         // Cerrar diálogo de carga
@@ -573,7 +425,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
         }
 
         // Extraer mensaje del servidor para mostrar en alerta
-        final serverMessage = _extractServerMessage(e.toString());
+        final serverMessage = _logic.extractServerMessage(e.toString());
         _showServerAlert(serverMessage);
       } finally {
         debugPrint('🔄 Finalizando proceso...');
@@ -582,45 +434,12 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
   }
 
   /// Extrae el mensaje del servidor de un error
-  String _extractServerMessage(String errorMessage) {
-    try {
-      // Buscar patrones comunes de errores del servidor
-      if (errorMessage.contains('Exception:')) {
-        final parts = errorMessage.split('Exception:');
-        if (parts.length > 1) {
-          return parts[1].trim();
-        }
-      }
-
-      if (errorMessage.contains('Error:')) {
-        final parts = errorMessage.split('Error:');
-        if (parts.length > 1) {
-          return parts[1].trim();
-        }
-      }
-
-      // Si no encuentra un patrón específico, devolver el mensaje completo
-      return errorMessage;
-    } catch (e) {
-      return 'Error desconocido al procesar la solicitud';
-    }
-  }
+  // Delegado a NuevoGastoLogic.extractServerMessage
 
   /// Verifica si el mensaje indica que la factura ya está registrada
-  bool _isFacturaDuplicada(String message) {
-    final messageLower = message.toLowerCase();
-    return messageLower.contains('ya existe') ||
-        messageLower.contains('duplicad') ||
-        messageLower.contains('already exists') ||
-        messageLower.contains('ya registrada') ||
-        messageLower.contains('duplicate') ||
-        messageLower.contains('constraint') ||
-        messageLower.contains('primary key');
-  }
-
   /// Muestra una alerta con el mensaje del servidor
   void _showServerAlert(String message) {
-    final isDuplicate = _isFacturaDuplicada(message);
+    final isDuplicate = _logic.isFacturaDuplicada(message);
 
     if (isDuplicate) {
       _showFacturaDuplicadaDialog(message);
@@ -829,19 +648,28 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildImageSection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildLectorSunatSection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildDatosGeneralesSection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildDatosPersonalizadosSection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildNotasSection(),
                   ],
                 ),
               ),
             ),
-            _buildActionButtons(),
+            // Evitar que los botones queden pegados al borde inferior del modal
+            SafeArea(
+              top: false,
+              left: false,
+              right: false,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 1.0),
+                child: _buildActionButtons(),
+              ),
+            ),
           ],
         ),
       ),
@@ -851,7 +679,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
   /// Construir el header del modal
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.green.shade700, Colors.green.shade400],
@@ -1052,16 +880,32 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
             color: Colors.green,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 4),
 
         // Proveedor
         TextFormField(
           controller: _proveedorController,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Proveedor',
-            hintText: 'Indica el proveedor',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.business),
+            hintText: 'Ingresa el nombre del proveedor',
+            floatingLabelBehavior:
+                FloatingLabelBehavior.always, // Label siempre arriba
+            border: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey.shade400, width: 1),
+            ),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey.shade400, width: 1),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(
+                color: Colors.green,
+                width: 2,
+              ), // Línea verde al focus
+            ),
+            errorBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red, width: 2),
+            ),
+            prefixIcon: const Icon(Icons.business, color: Colors.grey),
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
@@ -1073,19 +917,51 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
         const SizedBox(height: 12),
 
         // Fecha
+        // Fecha - Versión con mejor feedback visual
         TextFormField(
           controller: _fechaController,
-          decoration: const InputDecoration(
-            labelText: 'Fecha',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.calendar_today),
-            suffixIcon: Icon(Icons.arrow_drop_down),
+          decoration: InputDecoration(
+            labelText: 'Fecha de registro',
+            hintText: 'DD/MM/AAAA',
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            floatingLabelStyle: const TextStyle(
+              color: Colors.green,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+            border: const UnderlineInputBorder(),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey.shade400, width: 1.5),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.green, width: 2.5),
+            ),
+            prefixIcon: Container(
+              margin: const EdgeInsets.only(right: 8),
+              child: const Icon(Icons.calendar_month, color: Colors.green),
+            ),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.expand_more, color: Colors.green),
+              onPressed: _selectDate,
+              tooltip: 'Seleccionar fecha', // Mejora la accesibilidad
+            ),
+            filled: true,
+            fillColor: _fechaController.text.isEmpty
+                ? Colors.grey.shade50
+                : Colors.deepPurple.shade50.withOpacity(0.3),
           ),
           readOnly: true,
           onTap: _selectDate,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: _fechaController.text.isEmpty
+                ? Colors.grey.shade600
+                : Colors.black87,
+          ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'La fecha es obligatoria';
+              return 'Por favor, selecciona una fecha';
             }
             return null;
           },
@@ -1096,7 +972,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
         Row(
           children: [
             Expanded(
-              flex: 2,
+              flex: 1,
               child: TextFormField(
                 controller: _totalController,
                 decoration: const InputDecoration(
@@ -1116,7 +992,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
                 },
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 6),
             Expanded(
               child: DropdownButtonFormField<String>(
                 value: _selectedMoneda,
@@ -1147,6 +1023,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
             ),
           ],
         ),
+
         const SizedBox(height: 12),
 
         // RUC Cliente (no editable, siempre el RUC de la empresa)
@@ -1181,7 +1058,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
             color: Colors.green,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
 
         // Categoría
         _buildCategoriaSection(),
@@ -1390,7 +1267,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
             'Tipo de Gasto',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1456,7 +1333,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.note),
           ),
-          maxLines: 3,
+          maxLines: 2,
           maxLength: 500,
         ),
       ],
@@ -1466,18 +1343,15 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
   /// Construir los botones de acción
   Widget _buildActionButtons() {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(top: BorderSide(color: Colors.grey.shade300)),
-      ),
+      padding: const EdgeInsets.all(8),
+
       child: Row(
         children: [
           Expanded(
             child: OutlinedButton(
               onPressed: widget.onCancel,
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 side: const BorderSide(color: Colors.grey),
               ),
               child: const Text(
@@ -1486,14 +1360,14 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 18),
           Expanded(
             child: ElevatedButton(
               onPressed: _guardarGasto,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 8),
               ),
               child: const Text(
                 'Guardar',
@@ -1510,7 +1384,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
   Widget _buildLectorSunatSection() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1520,7 +1394,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Lector de Código SUNAT',
+                    'Lector de Código QR',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -1535,18 +1409,18 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                      horizontal: 10,
+                      vertical: 6,
                     ),
                     textStyle: const TextStyle(fontSize: 12),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 1),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: _hasScannedData
                     ? Colors.green.shade50
@@ -1603,12 +1477,12 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
                         Icon(
                           Icons.info_outline,
                           color: Colors.grey.shade600,
-                          size: 20,
+                          size: 15,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Escanee el código QR de la factura para llenar automáticamente los campos',
+                            'Escanee el código QR de la factura',
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 12,
@@ -1668,54 +1542,63 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
         // Formato típico de QR SUNAT:
         // RUC|Tipo|Serie|Número|IGV|Total|Fecha|TipoDoc|DocReceptor
 
-        // RUC del emisor
-        if (parts[0].isNotEmpty) {
-          _rucProveedorController.text = parts[0];
-        }
-
-        // Tipo de comprobante
-        if (parts[1].isNotEmpty) {
-          String tipoDoc = parts[1];
-          switch (tipoDoc) {
-            case '01':
-              _tipoDocumentoController.text = 'FACTURA';
-              break;
-            case '03':
-              _tipoDocumentoController.text = 'BOLETA DE VENTA';
-              break;
-            case '08':
-              _tipoDocumentoController.text = 'NOTA DE DÉBITO';
-              break;
-            default:
-              _tipoDocumentoController.text = 'COMPROBANTE';
+        // Envolver las asignaciones en setState y escribir en ambos controladores
+        setState(() {
+          // RUC del emisor
+          if (parts[0].isNotEmpty) {
+            _rucProveedorController.text = parts[0];
+            _rucController.text = parts[0];
           }
-        }
 
-        // Serie
-        if (parts[2].isNotEmpty) {
-          _serieFacturaController.text = parts[2];
-        }
+          // Tipo de comprobante (texto) -> actualizar controlador UI y el usado en guardado
+          if (parts[1].isNotEmpty) {
+            String tipoDoc = parts[1];
+            String tipoTexto;
+            switch (tipoDoc) {
+              case '01':
+                tipoTexto = 'FACTURA ELECTRÓNICA';
+                break;
+              case '03':
+                tipoTexto = 'BOLETA DE VENTA';
+                break;
+              case '08':
+                tipoTexto = 'NOTA DE DÉBITO';
+                break;
+              default:
+                tipoTexto = 'COMPROBANTE';
+            }
+            _tipoDocumentoController.text = tipoTexto;
+            _tipoComprobanteController.text = tipoTexto;
+          }
 
-        // Número de factura
-        if (parts[3].isNotEmpty) {
-          _numeroFacturaController.text = parts[3];
-        }
+          // Serie
+          if (parts[2].isNotEmpty) {
+            _serieFacturaController.text = parts[2];
+            _serieController.text = parts[2];
+          }
 
-        // Número de documento (combinado para compatibilidad)
-        if (parts[2].isNotEmpty && parts[3].isNotEmpty) {
-          _numeroDocumentoController.text = '${parts[2]}-${parts[3]}';
-        }
+          // Número de factura
+          if (parts[3].isNotEmpty) {
+            _numeroFacturaController.text = parts[3];
+            _numeroController.text = parts[3];
+          }
 
-        // Total
-        if (parts[5].isNotEmpty) {
-          _totalController.text = parts[5];
-        }
+          // Número de documento (combinado para compatibilidad)
+          if (parts[2].isNotEmpty && parts[3].isNotEmpty) {
+            _numeroDocumentoController.text = '${parts[2]}-${parts[3]}';
+          }
 
-        // Fecha (si está disponible)
-        if (parts.length > 6 && parts[6].isNotEmpty) {
-          final fechaNormalizada = _normalizarFecha(parts[6]);
-          _fechaController.text = fechaNormalizada;
-        }
+          // Total
+          if (parts[5].isNotEmpty) {
+            _totalController.text = parts[5];
+          }
+
+          // Fecha (si está disponible)
+          if (parts.length > 6 && parts[6].isNotEmpty) {
+            final fechaNormalizada = _logic.normalizarFecha(parts[6]);
+            _fechaController.text = fechaNormalizada;
+          }
+        });
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1740,96 +1623,7 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
   }
 
   /// Normaliza diferentes formatos de fecha al formato ISO (YYYY-MM-DD)
-  String _normalizarFecha(String fechaOriginal) {
-    try {
-      // Limpiar la fecha de espacios y caracteres especiales
-      String fechaLimpia = fechaOriginal.trim();
-
-      // Lista de formatos de fecha comunes que pueden venir en QR de facturas
-      final formatosPosibles = [
-        'yyyy-MM-dd', // 2024-10-03 (ISO estándar)
-        'dd/MM/yyyy', // 03/10/2024 (formato peruano común)
-        'dd-MM-yyyy', // 03-10-2024
-        'yyyy/MM/dd', // 2024/10/03
-        'MM/dd/yyyy', // 10/03/2024 (formato americano)
-        'dd.MM.yyyy', // 03.10.2024 (formato europeo)
-        'yyyyMMdd', // 20241003 (formato sin separadores)
-        'dd/MM/yy', // 03/10/24 (año de 2 dígitos)
-        'yyyy-M-d', // 2024-10-3 (sin ceros a la izquierda)
-        'dd/M/yyyy', // 03/10/2024
-        'd/MM/yyyy', // 3/10/2024
-        'd/M/yyyy', // 3/10/2024
-      ];
-
-      DateTime? fechaParseada;
-
-      // Intentar parsear con cada formato
-      for (String formato in formatosPosibles) {
-        try {
-          fechaParseada = DateFormat(formato).parseStrict(fechaLimpia);
-          debugPrint('✅ Fecha parseada exitosamente con formato: $formato');
-          debugPrint(
-            '📅 Fecha original: $fechaOriginal → Fecha parseada: $fechaParseada',
-          );
-          break;
-        } catch (e) {
-          // Continuar con el siguiente formato
-          continue;
-        }
-      }
-
-      // Si no se pudo parsear con ningún formato, intentar con parseo flexible
-      if (fechaParseada == null) {
-        try {
-          // Intentar detectar automáticamente el formato
-          fechaParseada = DateTime.parse(fechaLimpia);
-          debugPrint('✅ Fecha parseada con DateTime.parse automático');
-        } catch (e) {
-          // Intentar con algunos patrones especiales
-          try {
-            // Remover caracteres no numéricos y intentar formato YYYYMMDD
-            String soloNumeros = fechaLimpia.replaceAll(RegExp(r'[^0-9]'), '');
-            if (soloNumeros.length == 8) {
-              String year = soloNumeros.substring(0, 4);
-              String month = soloNumeros.substring(4, 6);
-              String day = soloNumeros.substring(6, 8);
-              fechaParseada = DateTime.parse('$year-$month-$day');
-              debugPrint('✅ Fecha parseada desde números: $soloNumeros');
-            }
-          } catch (e2) {
-            debugPrint('❌ No se pudo parsear la fecha: $fechaOriginal');
-          }
-        }
-      }
-
-      if (fechaParseada != null) {
-        // Validar que la fecha sea razonable (no muy antigua ni muy futura)
-        final ahora = DateTime.now();
-        final hace5Anos = ahora.subtract(const Duration(days: 365 * 5));
-        final en1Ano = ahora.add(const Duration(days: 365));
-
-        if (fechaParseada.isBefore(hace5Anos) ||
-            fechaParseada.isAfter(en1Ano)) {
-          debugPrint('⚠️ Fecha fuera del rango razonable: $fechaParseada');
-          // Si la fecha está fuera del rango, usar fecha actual
-          return DateFormat('yyyy-MM-dd').format(ahora);
-        }
-
-        // Convertir al formato ISO estándar
-        String fechaISO = DateFormat('yyyy-MM-dd').format(fechaParseada);
-        debugPrint('🎯 Fecha normalizada: $fechaOriginal → $fechaISO');
-        return fechaISO;
-      }
-
-      // Si todo falla, usar la fecha actual
-      debugPrint('🔄 Usando fecha actual como fallback para: $fechaOriginal');
-      return DateFormat('yyyy-MM-dd').format(DateTime.now());
-    } catch (e) {
-      debugPrint('💥 Error en _normalizarFecha: $e');
-      // En caso de cualquier error, usar fecha actual
-      return DateFormat('yyyy-MM-dd').format(DateTime.now());
-    }
-  }
+  // Normalización delegada a NuevoGastoLogic.normalizarFecha
 
   /// Limpiar los datos escaneados
   void _clearScannedData() {
@@ -1838,9 +1632,13 @@ class _NuevoGastoModalState extends State<NuevoGastoModal> {
 
       // Limpiar los campos que se llenaron automáticamente
       _rucProveedorController.clear();
+      _rucController.clear();
       _serieFacturaController.clear();
+      _serieController.clear();
       _numeroFacturaController.clear();
+      _numeroController.clear();
       _tipoDocumentoController.clear();
+      _tipoComprobanteController.clear();
       _numeroDocumentoController.clear();
       _totalController.clear();
       _fechaController.text = DateTime.now().toString().split(' ')[0];

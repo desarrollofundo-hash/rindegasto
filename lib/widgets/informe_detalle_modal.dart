@@ -1,7 +1,11 @@
+import 'package:flu2/models/reporte_model.dart';
+import 'package:flu2/screens/informes/detalle_informe_screen.dart';
 import 'package:flutter/material.dart';
 import '../models/reporte_informe_model.dart';
 import '../models/reporte_informe_detalle.dart';
 import '../services/api_service.dart';
+import '../services/user_service.dart';
+import '../services/company_service.dart';
 import 'editar_informe_modal.dart';
 
 class InformeDetalleModal extends StatefulWidget {
@@ -18,6 +22,8 @@ class _InformeDetalleModalState extends State<InformeDetalleModal>
   late TabController _tabController;
   List<ReporteInformeDetalle> _detalles = [];
   bool _isLoading = true;
+  bool _isSending = false;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -26,127 +32,265 @@ class _InformeDetalleModalState extends State<InformeDetalleModal>
     _loadDetalles();
   }
 
-  Future<void> _loadDetalles() async {
+  /* 
+  Future<void> _enviarInforme() async {
+    // Usaremos IdAd = widget.informe.idInf según lo solicitado
+    /* final idAd = widget.informe.idInf; */
+    if (_detalles.isEmpty) {
+      return;
+    }
+
+    // Mostrar loading
     setState(() {
-      _isLoading = true;
+      _isSending = true;
     });
 
+    // Mostrar loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
     try {
-      print('🚀 Iniciando carga de detalles...');
-      print('📊 Informe ID: ${widget.informe.idInf}');
-      print('📊 Informe Total: ${widget.informe.total}');
-      print('📊 Informe Cantidad: ${widget.informe.cantidad}');
+      // Preparar payload de cabecera (auditoría)
+      final cabecera = {
+        "idAd": 0, // Usar código de usuario actual
+        "idInf": widget.informe.idInf,
+        "idUser": widget.informe.idUser,
+        // Enviar como strings para evitar problemas de parsing en el backend
+        "dni": (widget.informe.dni ?? UserService().currentUserDni).toString(),
+        "ruc": (widget.informe.ruc ?? CompanyService().companyRuc).toString(),
+        "obs": widget.informe.nota ?? "",
+        "estadoActual": widget.informe.estadoActual ?? "EN INFORME",
+        "estado": widget.informe.estado ?? "S",
+        "fecCre": DateTime.now().toIso8601String(),
+        "useReg": widget.informe.useReg != 0
+            ? widget.informe.useReg
+            : int.parse(UserService().currentUserCode),
+        "hostname": widget.informe.hostname ?? "",
+        "fecEdit": DateTime.now().toIso8601String(),
+        "useEdit": widget.informe.useEdit != 0
+            ? widget.informe.useEdit
+            : int.parse(UserService().currentUserCode),
+        "useElim": widget.informe.useElim,
+      };
 
-      // Intentar llamar al API primero
-      final apiService = ApiService();
-      List<ReporteInforme> reportesInforme = [];
+      // Llamar API de auditoría (cabecera)
+      final idAd = await _apiService.saverendicionauditoria(cabecera);
 
-      /*  try {
-        reportesInforme = await apiService.getReportesRendicionInforme_Detalle(
-          idrend: widget.informe.idInf.toString(),
-        );
-        print('🔍 API Response: ${reportesInforme.length} items received');
-      } catch (apiError) {
-        print('⚠️ API Error: $apiError');
-        // Si el API falla, crear datos mock basados en el informe
-        print('� Creando datos mock para testing...');
+      if (idAd == null) {
+        throw Exception('Error al guardar la auditoría del informe');
       }
- */
-      List<ReporteInformeDetalle> detallesConvertidos = [];
 
-      if (reportesInforme.isNotEmpty) {
-        // Usar datos reales del API
-        detallesConvertidos = reportesInforme.map((reporte) {
-          return ReporteInformeDetalle(
-            id: reporte.idInf,
-            idinf: widget.informe.idInf,
-            idrend: reporte.idInf,
-            iduser: reporte.idUser,
-            obs: reporte.obs,
-            estadoactual: reporte.estadoActual,
-            estado: reporte.estado,
-            feccre: reporte.fecCre,
-            politica: reporte.politica,
-            categoria: 'GENERAL',
-            tipogasto: 'GASTO',
-            ruc: reporte.ruc,
-            proveedor: reporte.ruc != null && reporte.ruc!.isNotEmpty
-                ? 'Empresa RUC: ${reporte.ruc}'
-                : 'Proveedor no especificado',
-            tipocombrobante: 'FACTURA',
-            serie: '',
-            numero: '',
-            igv: 0.0,
-            fecha: reporte.fecCre,
-            total: reporte.total,
-            moneda: 'PEN',
-            ruccliente: reporte.ruc,
-            motivoviaje: '',
-            lugarorigen: '',
-            lugardestino: '',
-            tipomovilidad: '',
-          );
-        }).toList();
-      } else {
-        // Crear datos mock para prueba
-        for (int i = 0; i < widget.informe.cantidad; i++) {
-          detallesConvertidos.add(
-            ReporteInformeDetalle(
-              id: widget.informe.idInf + i,
-              idinf: widget.informe.idInf,
-              idrend: widget.informe.idInf,
-              iduser: widget.informe.idUser,
-              obs: 'Gasto ${i + 1}',
-              estadoactual: widget.informe.estadoActual,
-              estado: widget.informe.estado,
-              feccre: widget.informe.fecCre,
-              politica: widget.informe.politica,
-              categoria: 'GENERAL',
-              tipogasto: 'GASTO',
-              ruc: widget.informe.ruc,
-              proveedor:
-                  widget.informe.ruc != null && widget.informe.ruc!.isNotEmpty
-                  ? 'Proveedor ${i + 1} - RUC: ${widget.informe.ruc}'
-                  : 'Proveedor ${i + 1}',
-              tipocombrobante: 'FACTURA',
-              serie: 'F001',
-              numero: '${1000 + i}',
-              igv: (widget.informe.total / widget.informe.cantidad) * 0.18,
-              fecha: widget.informe.fecCre,
-              total: widget.informe.total / widget.informe.cantidad,
-              moneda: 'PEN',
-              ruccliente: widget.informe.ruc,
-              motivoviaje: '',
-              lugarorigen: '',
-              lugardestino: '',
-              tipomovilidad: '',
-            ),
+      debugPrint('🆔 IdAd obtenido: $idAd');
+
+      // Guardar cada detalle
+      // Guardar cada detalle con reintentos
+      final List<int> failedDetails = [];
+
+      for (final detalle in _detalles) {
+        final detallePayloadBase = {
+          "idAd": idAd,
+          "idInf": widget.informe.idInf,
+          "idInfDet": detalle.id,
+          "idRend": detalle.idrend,
+          "idUser": detalle.iduser,
+          // Enviar como strings
+          "dni": (widget.informe.dni ?? UserService().currentUserDni)
+              .toString(),
+          "ruc": (detalle.ruc ?? CompanyService().companyRuc).toString(),
+          "obs": "",
+          "estadoActual": "EN INFORME",
+          "estado": "S",
+          "fecCre": DateTime.now().toIso8601String(),
+          "useReg": int.parse(UserService().currentUserCode),
+          "hostname": "",
+          "fecEdit": DateTime.now().toIso8601String(),
+          "useEdit": int.parse(UserService().currentUserCode),
+          "useElim": 0,
+        };
+        final detalleGuardado = await _apiService.saverendicionauditoria(
+          detallePayloadBase,
+        );
+        if (detalleGuardado == null) {
+          throw Exception(
+            'Error al guardar el detalle de informe IdInfDet: ${detalle.id}',
           );
         }
       }
 
-      setState(() {
-        _detalles = detallesConvertidos;
-        _isLoading = false;
-      });
+      if (mounted) {
+        Navigator.of(context).pop(); // cerrar loading
+        Navigator.of(context).pop(true); // cerrar modal y retornar éxito
 
-      print('✅ State updated - Detalles cargados: ${_detalles.length} items');
-      print('📊 Loading state: $_isLoading');
-      print('📋 Empty check: ${_detalles.isEmpty}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Informe enviado correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        setState(() {
+          _isSending = false;
+        });
+      }
     } catch (e) {
-      print('❌ Error general al cargar detalles: $e');
-      print('🔍 Error type: ${e.runtimeType}');
-      print('🔍 Stack trace: ${StackTrace.current}');
+      if (mounted) Navigator.of(context).pop(); // cerrar loading
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Error'),
+            content: Text('Error al enviar informe: ${e.toString()}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+ */
+
+  Future<void> _loadDetalles() async {
+    if (mounted) {
       setState(() {
-        _detalles = [];
-        _isLoading = false;
+        _isLoading = true;
       });
+    }
+
+    try {
+      // Intentar llamar al API primero para obtener los detalles reales
+      List<ReporteInformeDetalle> reportesInforme = [];
+
+      try {
+        reportesInforme = await _apiService.getReportesRendicionInforme_Detalle(
+          idinf: widget.informe.idInf.toString(),
+        );
+      } catch (apiError) {
+        // fallback: dejar la lista vacía para mostrar el estado "No hay gastos"
+        reportesInforme = [];
+      }
+
+      if (mounted) {
+        setState(() {
+          _detalles = reportesInforme;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _detalles = [];
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _enviarInforme() async {
+    try {
+      setState(() => _isLoading = true);
+      print("🚀 Iniciando envío de informe...");
+
+      // 1️⃣ GUARDAR CABECERA (saveRendicionAuditoria)
+      final cabeceraPayload = {
+        "idAd": 0,
+        "idInf": widget.informe.idInf,
+        "idUser": widget.informe.idUser,
+        "dni": widget.informe.dni,
+        "ruc": widget.informe.ruc,
+        "obs": widget.informe.obs ?? "",
+        "estadoActual": "EN AUDITORIA",
+        "estado": "S",
+        "fecCre": DateTime.now().toIso8601String(),
+        "useReg": widget.informe.idUser,
+        "hostname": "",
+        "fecEdit": DateTime.now().toIso8601String(),
+        "useEdit": widget.informe.idUser,
+        "useElim": 0,
+      };
+
+      print("📤 Enviando cabecera: $cabeceraPayload");
+
+      final idAd = await _apiService.saveRendicionAuditoria(cabeceraPayload);
+      if (idAd == null) throw Exception("Error al guardar cabecera.");
+
+      print("✅ Cabecera guardada con idAd: $idAd");
+
+      // 2️⃣ GUARDAR DETALLES: usamos los campos del modelo ReporteInformeDetalle
+      if (_detalles.isEmpty) {
+        print('⚠️ No hay detalles para enviar.');
+      }
+
+      for (final detalless in _detalles) {
+        final detallePayload = {
+          "idAd": idAd, // Relación con la cabecera
+          "idInf": detalless.idinf,
+          "idInfDet": detalless.id, // usar idrend como id de factura
+          "idRend": detalless.idrend,
+          // Preferir el idUser del detalle; si no está, usar el del informe
+          "idUser": detalless.iduser != 0
+              ? detalless.iduser
+              : widget.informe.idUser,
+          // El modelo de detalle no tiene 'dni', por eso mantenemos el dni del informe
+          "dni": (widget.informe.dni ?? '').toString(),
+          // Usar ruc del detalle si existe, si no, el ruc del informe
+          "ruc": (detalless.ruc ?? widget.informe.ruc ?? '').toString(),
+          "obs": detalless.obs ?? '',
+          "estadoActual": detalless.estadoactual ?? 'EN AUDITORIA',
+          "estado": detalless.estado ?? 'S',
+          "fecCre": detalless.feccre ?? DateTime.now().toIso8601String(),
+          "useReg": detalless.iduser != 0
+              ? detalless.iduser
+              : widget.informe.idUser,
+          "hostname": detalless.proveedor ?? '',
+          "fecEdit": DateTime.now().toIso8601String(),
+          "useEdit": detalless.iduser != 0
+              ? detalless.iduser
+              : widget.informe.idUser,
+          "useElim": 0,
+        };
+
+        print("📤 Enviando detalle (id: ${detalless.id}): $detallePayload");
+
+        final detalleGuardado = await _apiService.saveRendicionAuditoriaDetalle(
+          detallePayload,
+        );
+
+        if (!detalleGuardado) {
+          throw Exception(
+            'Error al guardar el detalle de la rendición de auditoría para id ${detalless.id}',
+          );
+        }
+
+        print("✅ Detalle ${detalless.id} guardado correctamente");
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Informe enviado correctamente")),
+      );
+      Navigator.pop(context);
+    } catch (e, stack) {
+      print("❌ Error al enviar informe: $e");
+      print(stack);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error al enviar informe: $e")));
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 
@@ -577,10 +721,7 @@ class _InformeDetalleModalState extends State<InformeDetalleModal>
                       // Botón Enviar
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            // Aquí puedes agregar lógica para enviar
-                          },
+                          onPressed: _enviarInforme,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,

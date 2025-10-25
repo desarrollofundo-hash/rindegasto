@@ -1,10 +1,10 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 class DocumentScannerScreen extends StatefulWidget {
-  const DocumentScannerScreen({super.key});
+  const DocumentScannerScreen({Key? key}) : super(key: key);
 
   @override
   State<DocumentScannerScreen> createState() => _DocumentScannerScreenState();
@@ -12,70 +12,37 @@ class DocumentScannerScreen extends StatefulWidget {
 
 class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   File? _image;
-  final picker = ImagePicker();
   bool _isLoading = false;
 
-  void _showDebug(String message) {
-    print('DEBUG: $message');
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('DEBUG: $message')));
-  }
+  final ImagePicker _picker = ImagePicker();
 
   Future<void> _captureImage() async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
-      _showDebug('Iniciando captura de imagen...');
-
-      final pickedFile = await picker.pickImage(
+      setState(() {
+        _isLoading = true;
+      });
+      final XFile? xfile = await _picker.pickImage(
         source: ImageSource.camera,
         imageQuality: 85,
       );
-
-      if (pickedFile != null) {
-        _showDebug('Imagen capturada exitosamente: ${pickedFile.path}');
+      if (xfile != null) {
         setState(() {
-          _image = File(pickedFile.path);
+          _image = File(xfile.path);
         });
-      } else {
-        _showDebug('No se selecciono ninguna imagen');
       }
-    } on PlatformException catch (e) {
-      _showDebug('Error de plataforma: ${e.code} - ${e.message}');
-
-      String errorMessage = 'Error desconocido';
-      if (e.code == 'camera_access_denied') {
-        errorMessage = 'Acceso a la camara denegado. Verifica los permisos.';
-      } else if (e.code == 'permission_denied') {
-        errorMessage = 'Permisos denegados para acceder a la camara.';
-      } else if (e.code == 'no_available_camera') {
-        errorMessage = 'No hay camara disponible en este dispositivo.';
-      } else {
-        errorMessage = 'Error: ${e.message ?? 'Problema desconocido'}';
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
-      );
     } catch (e) {
-      _showDebug('Error general: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error inesperado: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      debugPrint('Error capturando imagen: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error capturando imagen: $e')));
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -83,78 +50,78 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Escaneador de Documentos'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const Text('Escanear documento'),
+        backgroundColor: const Color.fromARGB(255, 45, 47, 45),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ElevatedButton.icon(
-              onPressed: _isLoading ? null : _captureImage,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.camera_alt),
-              label: Text(_isLoading ? 'Procesando...' : 'Tomar Foto'),
-            ),
-            const SizedBox(height: 24),
-
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300, width: 2),
-                  borderRadius: BorderRadius.circular(12),
+            if (_image == null) ...[
+              const SizedBox(height: 24),
+              const Text(
+                'Coloca el documento frente a la cámara y presiona Capturar.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : _captureImage,
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('Capturar'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 45, 47, 45),
                 ),
-                child: _image == null
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.document_scanner_outlined,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'No hay imagen seleccionada',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey,
+              ),
+            ] else ...[
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          _image!,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              // Devolver la imagen seleccionada al caller
+                              Navigator.of(context).pop(_image);
+                            },
+                            child: const Text('Usar esta foto'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color.fromARGB(
+                                255,
+                                45,
+                                47,
+                                45,
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.file(_image!, fit: BoxFit.contain),
-                      ),
-              ),
-            ),
-
-            // Botón para procesar con IA (solo aparece si hay imagen)
-            if (_image != null && !_isLoading) ...[
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // Devolver el archivo de imagen para procesamiento con IA
-                    Navigator.pop(context, _image);
-                  },
-                  icon: const Icon(Icons.psychology),
-                  label: const Text('🤖 Procesar con IA'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 45, 47, 45),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _captureImage,
+                            child: const Text('Volver a tomar'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancelar'),
+                    ),
+                  ],
                 ),
               ),
             ],

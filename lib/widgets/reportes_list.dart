@@ -1,18 +1,11 @@
 // ignore_for_file: avoid_print
-
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import '../controllers/reportes_list_controller.dart';
 import '../models/reporte_model.dart';
-import '../models/dropdown_option.dart';
-import '../screens/qr_scanner_screen.dart';
-import '../screens/document_scanner_screen.dart';
-import '../services/factura_ia.dart';
-import 'politica_api_selection_modal.dart';
-import 'politica_test_modal.dart';
+import '../models/estado_reporte.dart';
 import 'package:intl/intl.dart';
-import 'dart:io';
-
-enum EstadoReporte { todos, borrador, enviado }
+import 'politica_selection_modal_scan.dart';
 
 class ReportesList extends StatefulWidget {
   final List<Reporte> reportes;
@@ -33,333 +26,19 @@ class ReportesList extends StatefulWidget {
 }
 
 class _ReportesListState extends State<ReportesList> {
+  final ReportesListController _controller = ReportesListController();
   // Función para abrir el escáner QR
-  void _abrirEscaneadorQR() async {
-    try {
-      final String? resultado = await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const QRScannerScreen()),
-      );
+  void _abrirEscaneadorQR() =>
+      _controller.abrirEscaneadorQR(context, () => mounted);
 
-      if (resultado != null && mounted) {
-        // Aquí puedes manejar el resultado del código QR escaneado
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Código escaneado: $resultado'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'Copiar',
-              textColor: Colors.white,
-              onPressed: () {
-                // Aquí podrías copiar al portapapeles si quieres
-                print('Código QR: $resultado');
-              },
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al abrir escáner: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+  void _crearGasto() => _controller.crearGasto(context, () => mounted);
 
-  // Función para crear gasto con selección de política
-  void _crearGasto() async {
-    try {
-      // Mostrar el modal de prueba primero para verificar funcionamiento
-      await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => PoliticaTestModal(
-          onPoliticaSelected: (politica) {
-            Navigator.pop(context);
-            _continuarConPolitica(politica);
-          },
-          onCancel: () {
-            Navigator.pop(context);
-          },
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al abrir selección de política: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
+  void _escanerIA() => _controller.escanerIA(context, () => mounted);
 
-  // Método para continuar después de seleccionar la política
-  void _continuarConPolitica(DropdownOption politica) {
-    print('🎯 Política seleccionada: ${politica.value} (ID: ${politica.id})');
+  // Función para escanear documentos con IA (el botón está inactivo)
 
-    // Mostrar confirmación con la política seleccionada
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(child: Text('Política seleccionada: ${politica.value}')),
-            ],
-          ),
-          backgroundColor: Colors.indigo,
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(
-            label: 'Continuar',
-            textColor: Colors.white,
-            onPressed: () {
-              _navegarSegunPolitica(politica);
-            },
-          ),
-        ),
-      );
-    }
-  }
-
-  // Método para navegar según la política seleccionada
-  void _navegarSegunPolitica(DropdownOption politica) {
-    // TODO: Implementar navegación específica según la política
-    // Aquí puedes agregar la lógica de navegación que necesites
-
-    // Ejemplo de cómo podrías manejar diferentes políticas:
-    switch (politica.value.toUpperCase()) {
-      case 'GENERAL':
-        // Navegar a pantalla de gasto general
-        break;
-      case 'GASTOS DE MOVILIDAD':
-        // Navegar a pantalla de gasto de movilidad
-        break;
-      default:
-        // Pantalla por defecto
-        break;
-    }
-
-    // Aquí podrías navegar a diferentes pantallas:
-    // Navigator.push(context, MaterialPageRoute(builder: (_) => PantallaEspecifica(politica: politica)));
-  }
-
-  // Función para escanear documentos con IA
-  void _escanearDocumento() async {
-    try {
-      // Navegar a una pantalla de captura de documentos
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const DocumentScannerScreen()),
-      );
-
-      if (result != null && mounted) {
-        // Si result es un File (imagen capturada), procesarlo con IA
-        if (result is File) {
-          _procesarFacturaConIA(result);
-        } else {
-          // Comportamiento original
-          /*  ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Documento escaneado exitosamente'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-              action: SnackBarAction(
-                label: 'Ver',
-                textColor: Colors.white,
-                onPressed: () {
-                  print('Documento escaneado: $result');
-                },
-              ),
-            ),
-          ); */
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al escanear documento: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // Función para procesar factura con IA
-  void _procesarFacturaConIA(File imagenFactura) async {
-    // Mostrar indicador de procesamiento
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            SizedBox(width: 16),
-            Text('🤖 Procesando factura con IA...'),
-          ],
-        ),
-        backgroundColor: Colors.blue,
-        duration: Duration(seconds: 3),
-      ),
-    );
-
-    try {
-      // Extraer datos con IA
-      final datosExtraidos = await FacturaIA.extraerDatos(imagenFactura);
-
-      if (datosExtraidos.isNotEmpty && !datosExtraidos.containsKey('Error')) {
-        _mostrarDatosExtraidos(datosExtraidos);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudieron extraer datos de la factura'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error procesando con IA: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // Función para mostrar los datos extraídos
-  void _mostrarDatosExtraidos(Map<String, String> datos) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.psychology, color: Colors.green),
-              SizedBox(width: 8),
-              Text('🤖 Datos Extraídos por IA'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Campos detectados para el modal peruano:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                ...datos.entries
-                    .map(
-                      (entry) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              width: 80,
-                              child: Text(
-                                '${entry.key}:',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                entry.value,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info, color: Colors.blue, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Estos datos se pueden usar automáticamente en el modal de factura peruana',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.blue[700],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                // Aquí puedes agregar lógica para usar los datos en el modal
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '✅ ${datos.length} campos extraídos listos para usar',
-                    ),
-                    backgroundColor: Colors.green,
-                    action: SnackBarAction(
-                      label: 'Abrir Modal',
-                      textColor: Colors.white,
-                      onPressed: () {},
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.assignment),
-              label: const Text('Usar en Modal'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // Nota: la lógica adicional (procesamiento IA, navegación de políticas, etc.)
+  // fue movida al controlador `ReportesListController`.
 
   @override
   Widget build(BuildContext context) {
@@ -419,8 +98,8 @@ class _ReportesListState extends State<ReportesList> {
           SpeedDialChild(
             child: const Icon(Icons.document_scanner, color: Colors.white),
             backgroundColor: Colors.green,
-            label: 'Escanear + IA',
-            onTap: _escanearDocumento,
+            label: 'Escanear IA',
+            onTap: _escanerIA,
           ),
 
           SpeedDialChild(
@@ -440,24 +119,9 @@ class _ReportesListState extends State<ReportesList> {
     );
   }
 
+  /* 
   Widget _buildList(EstadoReporte filtro) {
-    List<Reporte> data;
-
-    switch (filtro) {
-      case EstadoReporte.borrador:
-        data = widget.reportes
-            .where((r) => r.destino?.toUpperCase() == 'B')
-            .toList();
-        break;
-      case EstadoReporte.enviado:
-        data = widget.reportes
-            .where((r) => r.destino?.toUpperCase() == 'E')
-            .toList();
-        break;
-      case EstadoReporte.todos:
-        data = widget.reportes;
-        break;
-    }
+    final data = _controller.filtrarReportes(widget.reportes, filtro);
 
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
@@ -539,7 +203,7 @@ class _ReportesListState extends State<ReportesList> {
                                     color: Colors.white,
                                   ),
                                 ),
-                                backgroundColor: _getEstadoColor(
+                                backgroundColor: _controller.getEstadoColor(
                                   reporte.destino,
                                 ),
                                 padding: const EdgeInsets.symmetric(
@@ -576,25 +240,208 @@ class _ReportesListState extends State<ReportesList> {
             ),
     );
   }
+ */
 
-  Color? _getEstadoColor(String? estado) {
-    switch (estado?.toUpperCase()) {
-      case 'S':
-        return Colors.green[400];
-      case 'P':
-        return Colors.orange[400];
-      case 'E': // Enviado
-        return Colors.blue[400];
-      case 'B': // Borrador
-        return Colors.grey[400];
-      case 'C':
-        return Colors.green[700];
-      case 'F':
-        return Colors.red[400];
-      case 'SYNC':
-        return Colors.teal[400];
-      default:
-        return Colors.grey[400];
-    }
+  Widget _buildList(EstadoReporte filtro) {
+    final data = _controller.filtrarReportes(widget.reportes, filtro);
+
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      child: data.isEmpty
+          ? ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.auto_graph_rounded,
+                        size: 65,
+                        color: Colors.grey,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        "No hay facturas registradas",
+                        style: TextStyle(
+                          color: Colors.black54,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: data.length,
+              itemBuilder: (context, index) {
+                final reporte = data[index];
+                final fechaOriginal = DateTime.tryParse(reporte.fecha ?? '');
+                final fechaCorta = fechaOriginal != null
+                    ? DateFormat('dd/MM/yy').format(fechaOriginal)
+                    : 'Fecha inválida';
+
+                return GestureDetector(
+                  onTap: widget.onTap != null
+                      ? () => widget.onTap!(reporte)
+                      : null,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.grey.shade200, width: 1),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12.withOpacity(0.05),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // 🔹 Icono + información
+                          Expanded(
+                            child: Row(
+                              children: [
+                                // 🔸 Ícono decorativo fuera de lo común
+                                const SizedBox(width: 5),
+
+                                // 🔸 Datos principales
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        reporte.ruc ?? '',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: Color(0xFF1E293B),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.local_offer_rounded,
+                                            size: 14,
+                                            color: Colors.amberAccent.shade700,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              reporte.categoria ?? '',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.black54,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.calendar_month_rounded,
+                                            size: 13,
+                                            color: Colors.grey,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            fechaCorta,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.black45,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // 🔹 Monto + estado
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.payments_rounded,
+                                    color: Color(0xFF2563EB),
+                                    size: 17,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${reporte.total} PEN',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _controller.getEstadoColor(
+                                    reporte.destino,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.blur_circular_rounded,
+                                      size: 12,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      reporte.destino ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
   }
+
+  // El color del estado se obtiene desde el controlador.
 }

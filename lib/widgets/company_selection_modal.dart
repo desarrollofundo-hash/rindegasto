@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../screens/home_screen.dart';
 import '../services/api_service.dart';
 import '../services/company_service.dart';
@@ -80,13 +81,32 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
       // 🏢 GUARDAR LA EMPRESA SELECCIONADA EN EL SERVICIO
       CompanyService().setCurrentCompany(selectedUserCompany);
 
-      Navigator.of(context).pop(); // Cerrar el modal
+      // Quitar foco de cualquier TextField antes de cerrar modales
+      FocusScope.of(context).unfocus();
 
+      // Cerrar el modal de selección de empresa
+      Navigator.of(context).pop();
+
+      // Si el modal fue abierto desde el flujo de login -> navegar a Home
       if (widget.shouldNavigateToHome) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
+      } else {
+        // Si fue abierto desde el perfil (shouldNavigateToHome == false),
+        // cerramos también el modal del perfil (bottom sheet) para volver
+        // a la pantalla principal y permitir que HomeScreen escuche el
+        // cambio de empresa y se refresque.
+        // Hacemos un pop adicional si es posible.
+        if (Navigator.of(context).canPop()) {
+          try {
+            FocusScope.of(context).unfocus();
+            Navigator.of(context).pop();
+          } catch (_) {
+            // Ignorar si no se puede hacer pop adicional
+          }
+        }
       }
 
       // Mostrar mensaje de confirmación con más detalles
@@ -114,6 +134,12 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
           duration: const Duration(seconds: 4),
         ),
       );
+
+      // Asegurar que el foco y el teclado se oculten una vez que la navegación termine
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        SystemChannels.textInput.invokeMethod('TextInput.hide');
+      });
     }
   }
 
@@ -141,22 +167,8 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Icono y título
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade100,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.business,
-                size: 32,
-                color: Colors.blue.shade700,
-              ),
-            ),
-            const SizedBox(height: 16),
-
             Text(
-              '¡Bienvenido ${widget.userName}!',
+              '¡Bienvenido ${widget.userName} 👋!',
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -171,7 +183,7 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
               style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 14),
 
             // Lista desplegable de empresas o estados de carga/error
             if (isLoading)

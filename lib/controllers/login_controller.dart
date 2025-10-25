@@ -31,8 +31,8 @@ class LoginController extends ChangeNotifier {
     if (value == null || value.isEmpty) {
       return 'Por favor ingresa tu contraseña';
     }
-    if (value.length < 6) {
-      return 'La contraseña debe tener al menos 6 caracteres';
+    if (value.length < 8) {
+      return 'La contraseña debe tener al menos 8 caracteres';
     }
     return null;
   }

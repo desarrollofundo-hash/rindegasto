@@ -14,25 +14,27 @@ import '../services/user_service.dart';
 import '../services/company_service.dart';
 
 /// Widget modal personalizado para mostrar y editar datos de factura peruana
-class FacturaModalPeru extends StatefulWidget {
+class FacturaModalPeruEvid extends StatefulWidget {
   final FacturaData facturaData;
   final String politicaSeleccionada;
+  final File? selectedFile;
   final Function(FacturaData, String?) onSave;
   final VoidCallback onCancel;
 
-  const FacturaModalPeru({
+  const FacturaModalPeruEvid({
     super.key,
     required this.facturaData,
+    required this.selectedFile,
     required this.politicaSeleccionada,
     required this.onSave,
     required this.onCancel,
   });
 
   @override
-  State<FacturaModalPeru> createState() => _FacturaModalPeruState();
+  State<FacturaModalPeruEvid> createState() => _FacturaModalPeruState();
 }
 
-class _FacturaModalPeruState extends State<FacturaModalPeru> {
+class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
   // Controladores para cada campo
   late TextEditingController _politicaController;
   late TextEditingController _categoriaController;
@@ -48,8 +50,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   late TextEditingController _rucClienteController;
   late TextEditingController _notaController;
 
-  File? _selectedImage;
-  File? _selectedFile;
+  File? selectedFile;
   String? _selectedFileType; // 'image' o 'pdf'
   String? _selectedFileName;
   final ImagePicker _picker = ImagePicker();
@@ -70,9 +71,22 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   void initState() {
     super.initState();
     _initializeControllers();
+    // Si el modal recibió un archivo seleccionado, cargarlo en la sección de evidencia
+    if (widget.selectedFile != null) {
+      selectedFile = widget.selectedFile;
+      _selectedFileType =
+          widget.selectedFile!.path.toLowerCase().endsWith('.pdf')
+          ? 'pdf'
+          : 'image';
+      _selectedFileName = widget.selectedFile!.path
+          .split(RegExp(r'[\\/]'))
+          .last;
+    }
     _loadCategorias();
     _loadTiposGasto(); // Cargar tipos de gasto al inicializar
     _addValidationListeners();
+    // Validar el formulario con el archivo pre-cargado (si aplica)
+    _validateForm();
   }
 
   /// Agregar listeners para validación en tiempo real
@@ -135,9 +149,8 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         _totalController.text.trim().isNotEmpty &&
         _categoriaController.text.trim().isNotEmpty &&
         _tipoGastoController.text.trim().isNotEmpty &&
-        (_selectedImage != null ||
-            _selectedFile !=
-                null) && // ✅ Actualizado para aceptar archivos o imágenes
+        (selectedFile !=
+            null) && // ✅ Actualizado para aceptar archivos o imágenes
         _isRucValid(); // ✅ Añadida validación de RUC
 
     if (_isFormValid != isValid) {
@@ -365,8 +378,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   }
                   if (mounted) {
                     setState(() {
-                      _selectedImage = null;
-                      _selectedFile = null;
+                      selectedFile = null;
                       _selectedFileType = null;
                       _selectedFileName = null;
                     });
@@ -388,8 +400,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   );
                 }
                 setState(() {
-                  _selectedImage = null;
-                  _selectedFile = null;
+                  selectedFile = null;
                   _selectedFileType = null;
                   _selectedFileName = null;
                 });
@@ -398,8 +409,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             }
             if (mounted) {
               setState(() {
-                _selectedImage = file;
-                _selectedFile = file;
+                selectedFile = file;
                 _selectedFileType = 'image';
                 _selectedFileName = image.name;
               });
@@ -418,8 +428,8 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             final file = File(result.files.first.path!);
             if (mounted) {
               setState(() {
-                _selectedImage = null; // Limpiar imagen si había una
-                _selectedFile = file;
+                selectedFile = null; // Limpiar imagen si había una
+                selectedFile = file;
                 _selectedFileType = 'pdf';
                 _selectedFileName = result.files.first.name;
               });
@@ -706,10 +716,10 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
       // ✅ SEGUNDO API: Guardar evidencia/archivo usando el idRend del primer API
       final facturaDataEvidencia = {
         "idRend": idRend, // ✅ Usar el ID autogenerado del API principal
-        "evidencia": _selectedFile != null
-            ? base64Encode(_selectedFile!.readAsBytesSync())
-            : (_selectedImage != null
-                  ? base64Encode(_selectedImage!.readAsBytesSync())
+        "evidencia": selectedFile != null
+            ? base64Encode(selectedFile!.readAsBytesSync())
+            : (selectedFile != null
+                  ? base64Encode(selectedFile!.readAsBytesSync())
                   : ""),
         "obs": _notaController.text.length > 1000
             ? _notaController.text.substring(0, 1000)
@@ -838,7 +848,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   ),
                 ),
                 Text(
-                  'Datos extraídos del QR',
+                  'Datos extraídos de IMAGEN o PDF',
                   style: TextStyle(fontSize: 12, color: Colors.white70),
                 ),
               ],
@@ -883,16 +893,8 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 else
                   ElevatedButton.icon(
                     onPressed: _pickImage,
-                    icon: Icon(
-                      (_selectedImage == null && _selectedFile == null)
-                          ? Icons.add
-                          : Icons.edit,
-                    ),
-                    label: Text(
-                      (_selectedImage == null && _selectedFile == null)
-                          ? 'Agregar'
-                          : 'Cambiar',
-                    ),
+                    icon: Icon((selectedFile == null) ? Icons.add : Icons.edit),
+                    label: Text((selectedFile == null) ? 'Agregar' : 'Cambiar'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
@@ -903,7 +905,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             const SizedBox(height: 12),
 
             // Mostrar archivo seleccionado
-            if (_selectedFile != null)
+            if (selectedFile != null)
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
@@ -915,7 +917,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                         height: 200,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.file(_selectedFile!, fit: BoxFit.cover),
+                          child: Image.file(selectedFile!, fit: BoxFit.cover),
                         ),
                       )
                     : Container(
@@ -968,12 +970,10 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
                   border: Border.all(
-                    color: (_selectedImage == null && _selectedFile == null)
+                    color: (selectedFile == null)
                         ? Colors.red.shade300
                         : Colors.grey.shade300,
-                    width: (_selectedImage == null && _selectedFile == null)
-                        ? 2
-                        : 1,
+                    width: (selectedFile == null) ? 2 : 1,
                   ),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -982,20 +982,17 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                   children: [
                     Icon(
                       Icons.attach_file,
-                      color: (_selectedImage == null && _selectedFile == null)
-                          ? Colors.red
-                          : Colors.grey,
+                      color: (selectedFile == null) ? Colors.red : Colors.grey,
                       size: 40,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Agregar evidencia (Obligatorio)',
                       style: TextStyle(
-                        color: (_selectedImage == null && _selectedFile == null)
+                        color: (selectedFile == null)
                             ? Colors.red
                             : Colors.grey,
-                        fontWeight:
-                            (_selectedImage == null && _selectedFile == null)
+                        fontWeight: (selectedFile == null)
                             ? FontWeight.bold
                             : FontWeight.normal,
                       ),

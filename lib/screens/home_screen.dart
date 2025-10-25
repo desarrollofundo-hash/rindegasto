@@ -1,4 +1,8 @@
+import 'dart:ui';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:flutter/material.dart';
+import '../widgets/nuevo_informe_fab.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_modal.dart';
 import '../widgets/informes_reporte_list.dart';
@@ -24,27 +28,73 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   int _notificaciones = 5;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   // Variables para API
   final ApiService _apiService = ApiService();
   List<Reporte> _reportes = [];
+  List<Reporte> _allReportes = [];
   bool _isLoading = false;
 
   // Datos para informes y revisión
   List<ReporteInforme> _informes = [];
+  List<ReporteInforme> _allInformes = [];
   final List<Gasto> gastosRecepcion = [];
+  // Overlay para el FAB independiente de la barra inferior
+  OverlayEntry? _fabOverlay;
 
   @override
   void initState() {
     super.initState();
-    _loadReportes();
-    _loadInformes();
+    // Sólo cargar datos si hay usuario y empresa seleccionada. Evita
+    // peticiones con parámetros vacíos (que pueden causar 400 Bad Request)
+    if (UserService().isLoggedIn && CompanyService().isLoggedIn) {
+      _loadReportes();
+      _loadInformes();
+    }
+
+    // Escuchar cambios en la empresa seleccionada para refrescar la pantalla
+    CompanyService().addListener(_onCompanyChanged);
+
+    // Insertar el FAB en overlay según el índice actual después del primer frame
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateFabOverlay());
   }
 
   @override
   void dispose() {
+    // Remover overlay si está presente
+    _removeFabOverlay();
+
     _apiService.dispose();
+    CompanyService().removeListener(_onCompanyChanged);
     super.dispose();
+  }
+
+  void _onCompanyChanged() {
+    // Cuando la empresa cambia, recargamos los datos que dependen del RUC
+    if (!mounted) return;
+    // Limpiar y quitar foco del buscador para que el cursor no aparezca ahí
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+
+    // Evitar recargar si no hay usuario o empresa (por ejemplo después de logout)
+    if (UserService().isLoggedIn && CompanyService().isLoggedIn) {
+      _loadReportes();
+      _loadInformes();
+    } else {
+      // Si no hay sesión, limpiar listas y forzar rebuild
+      setState(() {
+        _reportes = [];
+        _allReportes = [];
+        _informes = [];
+        _allInformes = [];
+        _isLoading = false;
+      });
+      return;
+    }
+    // También forzamos rebuild por si hay textos que muestran el nombre de la empresa
+    setState(() {});
   }
 
   // ========== MÉTODOS API ==========
@@ -67,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _reportes = reportes;
+        _allReportes = List.from(reportes);
         _isLoading = false;
       });
     } catch (e) {
@@ -112,6 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _informes = informes;
+        _allInformes = List.from(informes);
         _isLoading = false;
       });
     } catch (e) {
@@ -190,110 +242,263 @@ class _HomeScreenState extends State<HomeScreen> {
   // ========== PANTALLAS REFACTORIZADAS ==========
 
   Widget _buildPantallaInicio() {
-    return Scaffold(
-      appBar: CustomAppBar(
-        hintText: "Buscar reportes...",
-        onProfilePressed: () => _mostrarEditarPerfil(context),
-        notificationCount: _notificaciones,
-        onNotificationPressed: _decrementarNotificaciones,
-      ),
-      body: ReportesList(
-        reportes: _reportes,
-        onRefresh: _loadReportes,
-        isLoading: _isLoading,
-        onTap: _mostrarEditarReporte,
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        appBar: CustomAppBar(
+          hintText: "Buscar reportes...",
+          onProfilePressed: () => _mostrarEditarPerfil(context),
+          notificationCount: _notificaciones,
+          onNotificationPressed: _decrementarNotificaciones,
+          onSearch: _handleSearchReportes,
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+        ),
+        body: ReportesList(
+          reportes: _reportes,
+          onRefresh: _loadReportes,
+          isLoading: _isLoading,
+          onTap: _mostrarEditarReporte,
+        ),
       ),
     );
   }
 
   Widget _buildPantallaInformes() {
-    return Scaffold(
-      appBar: CustomAppBar(
-        hintText: "Buscar informes...",
-        onProfilePressed: () => _mostrarEditarPerfil(context),
-        notificationCount: _notificaciones,
-        onNotificationPressed: _decrementarNotificaciones,
-      ),
-      body: TabbedScreen(
-        tabLabels: const ["Todos", "Borrador"],
-        tabColors: const [Colors.indigo, Colors.indigo],
-        tabViews: [
-          InformesReporteList(
-            informes: _informes,
-            auditoria: [],
-            onInformeUpdated: _actualizarInforme,
-            onInformeDeleted: _eliminarInforme,
-            showEmptyStateButton: true,
-            onEmptyStateButtonPressed: _agregarInforme,
-            onRefresh: _loadInformes,
-          ),
-          InformesReporteList(
-            informes: _informes.where((i) => i.estado == "Borrador").toList(),
-            auditoria: [],
-            onInformeUpdated: _actualizarInforme,
-            onInformeDeleted: _eliminarInforme,
-            showEmptyStateButton: false,
-            onRefresh: _loadInformes,
-          ),
-        ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: CustomAppBar(
+          hintText: "Buscar informes...",
+          onProfilePressed: () => _mostrarEditarPerfil(context),
+          notificationCount: _notificaciones,
+          onNotificationPressed: _decrementarNotificaciones,
+          onSearch: _handleSearchInformes,
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+        ),
+        body: TabbedScreen(
+          tabLabels: const ["Todos", "Borrador"],
+          tabColors: const [Colors.indigo, Colors.indigo],
+          tabViews: [
+            InformesReporteList(
+              informes: _informes,
+              auditoria: [],
+              onInformeUpdated: _actualizarInforme,
+              onInformeDeleted: _eliminarInforme,
+              showEmptyStateButton: true,
+              onEmptyStateButtonPressed: _agregarInforme,
+              onRefresh: _loadInformes,
+            ),
+            InformesReporteList(
+              informes: _informes.where((i) => i.estado == "Borrador").toList(),
+              auditoria: [],
+              onInformeUpdated: _actualizarInforme,
+              onInformeDeleted: _eliminarInforme,
+              showEmptyStateButton: false,
+              onRefresh: _loadInformes,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPantallaAditoria() {
-    return Scaffold(
-      appBar: CustomAppBar(
-        hintText: "Buscar en Auditoría...",
-        onProfilePressed: () => _mostrarEditarPerfil(context),
-        notificationCount: _notificaciones,
-        onNotificationPressed: _decrementarNotificaciones,
-      ),
-      body: TabbedScreen(
-        tabLabels: const ["Todos"],
-        tabColors: const [Colors.green],
-        tabViews: [
-          InformesReporteList(
-            informes: _informes,
-            auditoria: [],
-            onInformeUpdated: _actualizarInforme,
-            onInformeDeleted: _eliminarInforme,
-            showEmptyStateButton: false,
-            onRefresh: _loadInformes,
-          ),
-        ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+
+        appBar: CustomAppBar(
+          hintText: "Buscar en Auditoría...",
+          onProfilePressed: () => _mostrarEditarPerfil(context),
+          notificationCount: _notificaciones,
+          onNotificationPressed: _decrementarNotificaciones,
+          onSearch: _handleSearchAuditoria,
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+        ),
+        body: TabbedScreen(
+          tabLabels: const ["Todos"],
+          tabColors: const [Colors.green],
+          tabViews: [
+            InformesReporteList(
+              informes: _informes,
+              auditoria: [],
+              onInformeUpdated: _actualizarInforme,
+              onInformeDeleted: _eliminarInforme,
+              showEmptyStateButton: false,
+              onRefresh: _loadInformes,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPantallaRevision() {
-    return Scaffold(
-      appBar: CustomAppBar(
-        hintText: "Buscar en Revisión...",
-        onProfilePressed: () => _mostrarEditarPerfil(context),
-        notificationCount: _notificaciones,
-        onNotificationPressed: _decrementarNotificaciones,
-      ),
-      body: TabbedScreen(
-        tabLabels: const ["Todos"],
-        tabColors: const [Colors.green],
-        tabViews: [
-          InformesReporteList(
-            informes: _informes,
-            auditoria: [],
-            onInformeUpdated: _actualizarInforme,
-            onInformeDeleted: _eliminarInforme,
-            showEmptyStateButton: false,
-            onRefresh: _loadInformes,
-          ),
-        ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+
+        appBar: CustomAppBar(
+          hintText: "Buscar en Revisión...",
+          onProfilePressed: () => _mostrarEditarPerfil(context),
+          notificationCount: _notificaciones,
+          onNotificationPressed: _decrementarNotificaciones,
+          onSearch: _handleSearchRevision,
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+        ),
+        body: TabbedScreen(
+          tabLabels: const ["Todos"],
+          tabColors: const [Colors.green],
+          tabViews: [
+            InformesReporteList(
+              informes: _informes,
+              auditoria: [],
+              onInformeUpdated: _actualizarInforme,
+              onInformeDeleted: _eliminarInforme,
+              showEmptyStateButton: false,
+              onRefresh: _loadInformes,
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _handleSearchReportes(String query) {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _reportes = List.from(_allReportes);
+      });
+      return;
+    }
+
+    final q = query.toLowerCase();
+
+    setState(() {
+      _reportes = _allReportes.where((r) {
+        final ruc = (r.ruc ?? '').toLowerCase();
+        final categoria = (r.categoria ?? '').toLowerCase();
+        final monto = (r.total?.toString() ?? '').toLowerCase();
+        final rucCliente = (r.ruccliente ?? '').toLowerCase();
+        final politica = (r.politica ?? '').toLowerCase();
+        // Para estado en Reporte usamos 'obs' o 'destino' si aplica
+        final estado = (r.obs ?? r.destino ?? '').toLowerCase();
+
+        return ruc.contains(q) ||
+            categoria.contains(q) ||
+            monto.contains(q) ||
+            rucCliente.contains(q) ||
+            politica.contains(q) ||
+            estado.contains(q);
+      }).toList();
+    });
+  }
+
+  void _handleSearchInformes(String query) {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _informes = List.from(_allInformes);
+      });
+      return;
+    }
+
+    final q = query.toLowerCase();
+
+    setState(() {
+      _informes = _allInformes.where((inf) {
+        final titulo = (inf.titulo ?? '').toLowerCase();
+        final nota = (inf.nota ?? '').toLowerCase();
+        final cantidad = inf.cantidad.toString().toLowerCase();
+        final total = inf.total.toString().toLowerCase();
+        final categoria = (inf.politica ?? '').toLowerCase();
+        final estado = (inf.estadoActual ?? inf.estado ?? '').toLowerCase();
+
+        return titulo.contains(q) ||
+            nota.contains(q) ||
+            cantidad.contains(q) ||
+            total.contains(q) ||
+            categoria.contains(q) ||
+            estado.contains(q);
+      }).toList();
+    });
+  }
+
+  void _handleSearchAuditoria(String query) {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _informes = List.from(_allInformes);
+      });
+      return;
+    }
+
+    final q = query.toLowerCase();
+
+    setState(() {
+      _informes = _allInformes.where((inf) {
+        final titulo = (inf.titulo ?? '').toLowerCase();
+        final nota = (inf.nota ?? '').toLowerCase();
+        final cantidad = inf.cantidad.toString().toLowerCase();
+        final total = inf.total.toString().toLowerCase();
+        final categoria = (inf.politica ?? '').toLowerCase();
+        final estado = (inf.estadoActual ?? inf.estado ?? '').toLowerCase();
+
+        return titulo.contains(q) ||
+            nota.contains(q) ||
+            cantidad.contains(q) ||
+            total.contains(q) ||
+            categoria.contains(q) ||
+            estado.contains(q);
+      }).toList();
+    });
+  }
+
+  void _handleSearchRevision(String query) {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _informes = List.from(_allInformes);
+      });
+      return;
+    }
+
+    final q = query.toLowerCase();
+
+    setState(() {
+      _informes = _allInformes.where((inf) {
+        final titulo = (inf.titulo ?? '').toLowerCase();
+        final nota = (inf.nota ?? '').toLowerCase();
+        final cantidad = inf.cantidad.toString().toLowerCase();
+        final total = inf.total.toString().toLowerCase();
+        final categoria = (inf.politica ?? '').toLowerCase();
+        final estado = (inf.estadoActual ?? inf.estado ?? '').toLowerCase();
+
+        return titulo.contains(q) ||
+            nota.contains(q) ||
+            cantidad.contains(q) ||
+            total.contains(q) ||
+            categoria.contains(q) ||
+            estado.contains(q);
+      }).toList();
+    });
   }
 
   // ========== MÉTODOS DE INFORMES ==========
 
   Future<void> _agregarInforme() async {
-    showModalBottomSheet(
+    // Ocultar el FAB overlay antes de abrir el modal para evitar que quede visible
+    _removeFabOverlay();
+
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -311,6 +516,9 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+
+    // Restaurar el FAB en overlay si seguimos en la pestaña Informes
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateFabOverlay());
   }
 
   void _mostrarSnackInformeCreado(Gasto nuevo) {
@@ -336,48 +544,235 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ===== Overlay FAB helpers =====
+  OverlayEntry _createFabOverlay() {
+    return OverlayEntry(
+      builder: (context) {
+        // Calcular offset para que el FAB quede por encima de la barra inferior
+        final double safeBottom = MediaQuery.of(context).viewPadding.bottom;
+        // Altura estimada de la barra inferior (NavigationBarTheme height = 16)
+        const double bottomNavHeight = 10.0;
+        // Margen extra entre la barra y el FAB (aumentado para subir el botón)
+        const double extraMargin = 25.0;
+
+        final double bottomOffset = safeBottom + bottomNavHeight + extraMargin;
+
+        return Positioned(
+          right: 10,
+          bottom: bottomOffset,
+          child: SafeArea(child: NuevoInformeFab(onPressed: _agregarInforme)),
+        );
+      },
+    );
+  }
+
+  void _insertFabOverlay() {
+    if (_fabOverlay != null) return;
+    _fabOverlay = _createFabOverlay();
+    final overlay = Overlay.of(context);
+    overlay.insert(_fabOverlay!);
+  }
+
+  void _removeFabOverlay() {
+    _fabOverlay?.remove();
+    _fabOverlay = null;
+  }
+
+  void _updateFabOverlay() {
+    if (!mounted) return;
+    if (_selectedIndex == 1) {
+      _insertFabOverlay();
+    } else {
+      _removeFabOverlay();
+    }
+  }
+
   // ========== BUILD PRINCIPAL ACTUALIZADO ==========
+  /* 
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      _buildPantallaInicio(), // 0 - Gastos
+      _buildPantallaInformes(), // 1 - Informes
+      _buildPantallaAditoria(), // 2 - Auditoría
+      _buildPantallaRevision(), // 3 - Revisión
+    ];
+
+    return Scaffold(
+      body: pages[_selectedIndex],
+      // FAB moved to OverlayEntry to remain independent from bottomNavigationBar
+
+      /// 🌈 Fondo degradado + barra de navegación
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF1565C0), // azul medio
+              Color(0xFF0D47A1), // azul oscuro
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 10,
+              offset: Offset(0, -2),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          backgroundColor:
+              Colors.blueAccent, // 👈 importante para ver el degradado
+          indicatorColor: Colors.white.withOpacity(0.2), // color del resaltado
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (index) {
+            setState(() => _selectedIndex = index.clamp(0, pages.length - 1));
+          },
+          destinations: [
+            _animatedIcon(Icons.monetization_on, "Gastos", 0),
+            _animatedIcon(Icons.description, "Informes", 1),
+            _animatedIcon(Icons.assignment_turned_in_outlined, "Auditoría", 2),
+            _animatedIcon(Icons.inbox, "Revisión", 3),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ✨ Ícono animado con rotación y zoom
+  NavigationDestination _animatedIcon(IconData icon, String label, int index) {
+    bool isSelected = _selectedIndex == index;
+
+    return NavigationDestination(
+      icon: AnimatedRotation(
+        duration: const Duration(milliseconds: 400),
+        turns: isSelected ? 1 / 24 : 0, // pequeño giro
+        curve: Curves.easeOutBack,
+        child: AnimatedScale(
+          scale: isSelected ? 1.3 : 1.0, // efecto de zoom
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          child: Icon(
+            icon,
+            color: isSelected
+                ? Colors.white
+                : Colors.white, // colores sobre fondo azul
+            size: 28,
+          ),
+        ),
+      ),
+      label: label,
+    );
+  } */
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
       _buildPantallaInicio(), // 0 - Gastos
       _buildPantallaInformes(), // 1 - Informes
-      _buildPantallaAditoria(), // 3 - Configuración
-      _buildPantallaRevision(), // 2 - Revisión
+      _buildPantallaAditoria(), // 2 - Auditoría
+      _buildPantallaRevision(), // 3 - Revisión
     ];
 
     return Scaffold(
-      body: pages[_selectedIndex],
-      floatingActionButton: _selectedIndex == 1
-          ? FloatingActionButton.extended(
-              onPressed: _agregarInforme,
-              backgroundColor: const Color.fromARGB(255, 195, 15, 15),
-              icon: const Icon(Icons.add),
-              label: const Text("Agregar"),
-            )
-          : null,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index.clamp(0, pages.length - 1));
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.monetization_on),
-            label: "Gastos",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.description),
-            label: "Informes",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.assignment_turned_in_outlined),
-            label: "Aditoria",
-          ),
-          NavigationDestination(icon: Icon(Icons.inbox), label: "Revisión"),
-        ],
+      backgroundColor: Colors.white,
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: pages[_selectedIndex],
       ),
+
+      // FAB moved to an OverlayEntry so it stays independent from the bottom bar
+
+      // 🧊 Barra inferior flotante moderna
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.only(left: 7, right: 7, bottom: 1),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 15,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: NavigationBarTheme(
+              data: NavigationBarThemeData(
+                height: 70,
+                indicatorColor: Colors.white.withOpacity(0.3),
+                backgroundColor: Colors.transparent,
+                labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((
+                  states,
+                ) {
+                  return TextStyle(
+                    color: states.contains(WidgetState.selected)
+                        ? const Color(0xFF1565C0)
+                        : Colors.grey.shade700,
+                    fontWeight: states.contains(WidgetState.selected)
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                  );
+                }),
+              ),
+              child: NavigationBar(
+                elevation: 0,
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: (index) {
+                  // Limpiar campo de búsqueda al cambiar de pestaña
+                  _searchController.clear();
+                  _searchFocusNode.unfocus();
+                  // Resetear las listas a su estado completo
+                  setState(() {
+                    _reportes = List.from(_allReportes);
+                    _informes = List.from(_allInformes);
+                    _selectedIndex = index.clamp(0, pages.length - 1);
+                  });
+                  // Actualizar overlay después del frame para insertar/remover el FAB
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _updateFabOverlay(),
+                  );
+                },
+                destinations: [
+                  _animatedIcon(MdiIcons.cashMultiple, "Gastos", 0),
+                  _animatedIcon(Feather.file_text, "Informes", 1),
+                  _animatedIcon(MdiIcons.shieldCheckOutline, "Auditoría", 2),
+                  _animatedIcon(Feather.inbox, "Revisión", 3),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🎨 Ícono animado tipo Material con efecto de rebote
+  NavigationDestination _animatedIcon(IconData icon, String label, int index) {
+    bool isSelected = _selectedIndex == index;
+
+    return NavigationDestination(
+      icon: AnimatedRotation(
+        turns: isSelected ? 1 : 0,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutBack,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 300),
+          scale: isSelected ? 1.2 : 1.0,
+          curve: Curves.easeOutBack,
+          child: Icon(
+            icon,
+            size: 26,
+            color: isSelected ? const Color(0xFF1565C0) : Colors.grey.shade600,
+          ),
+        ),
+      ),
+      label: label,
     );
   }
 }

@@ -26,9 +26,10 @@ class QRScannerController extends ChangeNotifier {
   /// Configurar el controlador del escáner
   void _setupScanner() {
     _cameraController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
-      detectionTimeoutMs: 3000,
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      detectionTimeoutMs: 1500,
       returnImage: false,
+      facing: CameraFacing.back,
     );
   }
 
@@ -55,6 +56,10 @@ class QRScannerController extends ChangeNotifier {
     final facturaData = FacturaData.fromBarcode(barcode);
 
     _facturaDetectada = facturaData;
+    // Stop the camera to avoid duplicate detections while UI modal is open
+    try {
+      _cameraController.stop();
+    } catch (_) {}
     notifyListeners();
   }
 
@@ -86,6 +91,8 @@ class QRScannerController extends ChangeNotifier {
     if (imagePath != null) {
       print('Con imagen en: $imagePath');
     }
+    // Después de guardar, reiniciar el escaneo para permitir nueva detección
+    restartScanning();
   }
 
   /// Limpiar recursos

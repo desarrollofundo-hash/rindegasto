@@ -1,7 +1,7 @@
 // Modelo generado para las auditorías
-// Nombre de archivo mantiene la ortografía usada en los imports del proyecto: auditioria_model.dart
+// Nombre del archivo: auditioria_model.dart
 
-class AuditoriaModel {
+class ReporteAuditoria {
   final int idAd;
   final int idInf;
   final int idUser;
@@ -26,7 +26,7 @@ class AuditoriaModel {
   final int cantidadDesaprobado;
   final double totalDesaprobado;
 
-  AuditoriaModel({
+  ReporteAuditoria({
     required this.idAd,
     required this.idInf,
     required this.idUser,
@@ -52,7 +52,7 @@ class AuditoriaModel {
     required this.totalDesaprobado,
   });
 
-  factory AuditoriaModel.fromJson(Map<String, dynamic> json) {
+  factory ReporteAuditoria.fromJson(Map<String, dynamic> json) {
     DateTime? _parseDate(dynamic v) {
       if (v == null) return null;
       if (v is DateTime) return v;
@@ -72,7 +72,7 @@ class AuditoriaModel {
       return double.tryParse(v.toString()) ?? 0.0;
     }
 
-    return AuditoriaModel(
+    return ReporteAuditoria(
       idAd: _i(json['idAd']),
       idInf: _i(json['idInf']),
       idUser: _i(json['idUser']),
@@ -125,5 +125,57 @@ class AuditoriaModel {
       'cantidadDesaprobado': cantidadDesaprobado,
       'totalDesaprobado': totalDesaprobado,
     };
+  }
+
+  // --- 🔍 MÉTODOS Y CONDICIONES AGREGADAS (como en ReporteInforme) ---
+
+  /// Verificar si el informe está activo
+  bool get isActive => estado?.toLowerCase() == 's';
+
+  /// Verificar si hay gastos aprobados
+  bool get hasAprobados => cantidadAprobado > 0;
+
+  /// Verificar si hay gastos desaprobados
+  bool get hasDesaprobados => cantidadDesaprobado > 0;
+
+  /// Obtener porcentaje de aprobación
+  double get porcentajeAprobacion {
+    if (cantidad == 0) return 0.0;
+    return (cantidadAprobado / cantidad) * 100;
+  }
+
+  /// Obtener porcentaje de desaprobación
+  double get porcentajeDesaprobacion {
+    if (cantidad == 0) return 0.0;
+    return (cantidadDesaprobado / cantidad) * 100;
+  }
+
+  /// Verificar si el informe está completamente procesado
+  bool get isCompleted {
+    return (cantidadAprobado + cantidadDesaprobado) == cantidad;
+  }
+
+  /// Obtener estado formateado para mostrar en la UI
+  String get estadoFormateado {
+    switch (estadoActual?.toUpperCase()) {
+      case 'EN INFORME':
+        return 'En Informe';
+      case 'PENDIENTE':
+        return 'Pendiente';
+      case 'APROBADO':
+        return 'Aprobado';
+      case 'RECHAZADO':
+        return 'Rechazado';
+      case 'EN REVISION':
+        return 'En Revisión';
+      default:
+        return estadoActual ?? 'Sin Estado';
+    }
+  }
+
+  /// Sobrescritura de toString para depuración
+  @override
+  String toString() {
+    return 'ReporteAuditoria{idAd: $idAd, idInf: $idInf, titulo: $titulo, total: $total, cantidad: $cantidad}';
   }
 }

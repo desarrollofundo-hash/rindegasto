@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flu2/models/reporte_auditioria_model.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,10 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ReporteInforme> _informes = [];
   List<ReporteInforme> _allInformes = [];
   final List<Gasto> gastosRecepcion = [];
+
+  // Datos para auditoria
+  List<ReporteAuditoria> _auditoria = [];
+  List<ReporteAuditoria> _allAuditoria = [];
   // Overlay para el FAB independiente de la barra inferior
   OverlayEntry? _fabOverlay;
 
@@ -52,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (UserService().isLoggedIn && CompanyService().isLoggedIn) {
       _loadReportes();
       _loadInformes();
+      _loadAuditoria();
     }
 
     // Escuchar cambios en la empresa seleccionada para refrescar la pantalla
@@ -89,6 +95,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _allReportes = [];
         _informes = [];
         _allInformes = [];
+        _auditoria = [];
+        _allAuditoria = [];
         _isLoading = false;
       });
       return;
@@ -191,6 +199,52 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadAuditoria() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final auditoria = await _apiService.getReportesRendicionAuditoria(
+        idinf: '1',
+        idad: '1',
+        user: UserService().currentUserCode,
+        ruc: CompanyService().companyRuc,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _auditoria = auditoria;
+        _allAuditoria = List.from(auditoria);
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Mostrar error en SnackBar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar auditoria: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Reintentar',
+              textColor: Colors.white,
+              onPressed: _loadAuditoria,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   // ========== MÉTODOS REUTILIZABLES ==========
 
   void _mostrarEditarPerfil(BuildContext context) {
@@ -221,9 +275,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _actualizarAuditoria(ReporteAuditoria auditoriaModel) {
+    setState(() {
+      final index = _informes.indexWhere(
+        (i) => i.idInf == auditoriaModel.idInf,
+      );
+      if (index != -1) {
+        _auditoria[index] = auditoriaModel;
+      }
+    });
+  }
+
   void _eliminarInforme(ReporteInforme informe) {
     setState(() {
       _informes.remove(informe);
+    });
+  }
+
+  void _eliminarAuditoria(ReporteAuditoria auditoria) {
+    setState(() {
+      _auditoria.remove(auditoria);
     });
   }
 

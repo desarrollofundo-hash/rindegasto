@@ -1,8 +1,7 @@
-class AuditoriaDetalle {
+class ReporteAuditoriaDetalle {
   final int idAd;
   final int idInf;
   final int idInfDet;
-
   final int idRend;
   final int idUser;
   final String? dni;
@@ -17,7 +16,7 @@ class AuditoriaDetalle {
   final int? useEdit;
   final int? useElim;
 
-  AuditoriaDetalle({
+  ReporteAuditoriaDetalle({
     required this.idAd,
     required this.idInf,
     required this.idInfDet,
@@ -35,6 +34,7 @@ class AuditoriaDetalle {
     required this.useEdit,
     required this.useElim,
   });
+
   Map<String, dynamic> toMap() {
     return {
       'idAd': idAd,
@@ -56,8 +56,8 @@ class AuditoriaDetalle {
     };
   }
 
-  factory AuditoriaDetalle.fromJson(Map<String, dynamic> map) {
-    return AuditoriaDetalle(
+  factory ReporteAuditoriaDetalle.fromJson(Map<String, dynamic> map) {
+    return ReporteAuditoriaDetalle(
       idAd: map['idAd']?.toInt() ?? 0,
       idInf: map['idInf']?.toInt() ?? 0,
       idInfDet: map['idInfDet']?.toInt() ?? 0,
@@ -76,7 +76,8 @@ class AuditoriaDetalle {
       useElim: map['useElim']?.toInt(),
     );
   }
-  AuditoriaDetalle copyWith({
+
+  ReporteAuditoriaDetalle copyWith({
     int? idAd,
     int? idInf,
     int? idInfDet,
@@ -94,7 +95,7 @@ class AuditoriaDetalle {
     int? useEdit,
     int? useElim,
   }) {
-    return AuditoriaDetalle(
+    return ReporteAuditoriaDetalle(
       idAd: idAd ?? this.idAd,
       idInf: idInf ?? this.idInf,
       idInfDet: idInfDet ?? this.idInfDet,
@@ -112,5 +113,51 @@ class AuditoriaDetalle {
       useEdit: useEdit ?? this.useEdit,
       useElim: useElim ?? this.useElim,
     );
+  }
+
+  // --- 🔍 MÉTODOS Y CONDICIONES AÑADIDAS ---
+
+  @override
+  String toString() {
+    return 'ReporteAuditoriaDetalle{idAd: $idAd, idInf: $idInf, idInfDet: $idInfDet, idRend: $idRend, idUser: $idUser, estadoActual: $estadoActual, estado: $estado, fecCre: $fecCre, ruc: $ruc, obs: $obs}';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReporteAuditoriaDetalle &&
+          runtimeType == other.runtimeType &&
+          idAd == other.idAd &&
+          idInf == other.idInf &&
+          idInfDet == other.idInfDet;
+
+  @override
+  int get hashCode => idAd.hashCode ^ idInf.hashCode ^ idInfDet.hashCode;
+
+  // ✅ Formato de estado
+  String get estadoFormatted => estadoActual ?? 'Sin estado';
+
+  // ✅ Fecha formateada
+  String get fechaCreacionFormatted {
+    if (fecCre == null || fecCre!.isEmpty) return '----';
+    try {
+      if (fecCre!.contains('T')) {
+        return fecCre!.split('T')[0];
+      }
+      return fecCre!;
+    } catch (e) {
+      return '----';
+    }
+  }
+
+  // ✅ Verificaciones lógicas
+  bool get hasRuc => ruc != null && ruc!.isNotEmpty;
+  bool get hasObs => obs != null && obs!.isNotEmpty;
+
+  // ✅ Representación legible
+  String get resumenAuditoria {
+    final rucStr = hasRuc ? 'RUC: $ruc' : 'Sin RUC';
+    final obsStr = hasObs ? obs : 'Sin observaciones';
+    return '$rucStr • $estadoFormatted • $obsStr';
   }
 }

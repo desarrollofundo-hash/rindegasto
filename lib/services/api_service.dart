@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flu2/models/auditioria_model.dart';
+import 'package:flu2/models/reporte_auditioria_model.dart';
 import 'package:flu2/models/reporte_informe_detalle.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -327,7 +327,7 @@ class ApiService {
   }
 
   //RENDICION AUDITORIA
-  Future<List<AuditoriaModel>> getRendicionAuditoria({
+  Future<List<ReporteAuditoria>> getReportesRendicionAuditoria({
     required String idinf,
     required String idad,
     required String user,
@@ -404,12 +404,12 @@ class ApiService {
             return [];
           }
 
-          final reportes = <AuditoriaModel>[];
+          final reportes = <ReporteAuditoria>[];
           int errores = 0;
 
           for (int i = 0; i < jsonData.length; i++) {
             try {
-              final reporte = AuditoriaModel.fromJson(jsonData[i]);
+              final reporte = ReporteAuditoria.fromJson(jsonData[i]);
               reportes.add(reporte);
             } catch (e) {
               errores++;
@@ -2337,7 +2337,7 @@ class ApiService {
     }
   }
 
-Future<String?> subirArchivo(String filePath) async {
+  Future<String?> subirArchivo(String filePath) async {
     debugPrint('🚀 Guardando archivo en Drive...');
     debugPrint('📍 URL: $baseUrl/recibir/uploaddrive');
 
@@ -2368,7 +2368,7 @@ Future<String?> subirArchivo(String filePath) async {
 
     return null;
   }
-  
+
   // Cerrar el cliente cuando ya no se necesite
   void dispose() {
     client.close();

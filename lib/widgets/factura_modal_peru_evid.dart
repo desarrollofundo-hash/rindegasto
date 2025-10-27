@@ -258,7 +258,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
       text: widget.facturaData.rucCliente ?? '',
     );
     _notaController = TextEditingController(text: '');
-    
+
     // Campos específicos para movilidad
     _origenController = TextEditingController(text: '');
     _destinoController = TextEditingController(text: '');
@@ -818,7 +818,6 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
                     _buildFacturaDataSection(),
                     // Mostrar o ocultar la sección de movilidad dependiendo de la política seleccionada
                     if (_politicaController.text == 'GASTOS DE MOVILIDAD')
-                      const SizedBox(height: 20),
                       _buildMovilidadSection(),
 
                     const SizedBox(height: 20),
@@ -1450,7 +1449,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
           readOnly: true,
         ),
 
-// 🔍 Mensaje de validación del RUC Cliente
+        // 🔍 Mensaje de validación del RUC Cliente
         if (_rucClienteController.text.trim().isEmpty)
           Padding(
             padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
@@ -1514,7 +1513,6 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
       TextInputType.text,
     );
   }
-
 
   /// Construir la sección específica de movilidad
   Widget _buildMovilidadSection() {
@@ -1620,7 +1618,6 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
       ),
     );
   }
-
 
   /// Construir la sección de datos raw
   Widget _buildRawDataSection() {

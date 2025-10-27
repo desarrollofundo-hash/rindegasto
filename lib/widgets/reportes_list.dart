@@ -1,5 +1,3 @@
-// ignore_for_file: avoid_print
-
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import '../models/reporte_model.dart';
@@ -33,7 +31,15 @@ class ReportesList extends StatefulWidget {
 }
 
 class _ReportesListState extends State<ReportesList> {
-  // Función para abrir el escáner QR
+  EstadoReporte _filtroActual = EstadoReporte.todos;
+  final Map<EstadoReporte, String> _filtroTitles = {
+    EstadoReporte.todos: 'Todos los reportes',
+    EstadoReporte.borrador: 'Borradores',
+    EstadoReporte.enviado: 'Reportes enviados',
+  };
+
+  // ============ LÓGICA DE NEGOCIO ============
+
   void _abrirEscaneadorQR() async {
     try {
       final String? resultado = await Navigator.push(
@@ -42,39 +48,33 @@ class _ReportesListState extends State<ReportesList> {
       );
 
       if (resultado != null && mounted) {
-        // Aquí puedes manejar el resultado del código QR escaneado
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Código escaneado: $resultado'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'Copiar',
-              textColor: Colors.white,
-              onPressed: () {
-                // Aquí podrías copiar al portapapeles si quieres
-                print('Código QR: $resultado');
-              },
-            ),
+        _mostrarSnackBar(
+          mensaje: 'Código escaneado: $resultado',
+          icono: Icons.qr_code_scanner,
+          color: Colors.green,
+          accion: SnackBarAction(
+            label: 'Copiar',
+            onPressed: () => _copiarAlPortapapeles(resultado),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al abrir escáner: $e'),
-            backgroundColor: Colors.red,
-          ),
+        _mostrarSnackBar(
+          mensaje: 'Error al abrir escáner: $e',
+          color: Colors.red,
         );
       }
     }
   }
 
-  // Función para crear gasto con selección de política
+  void _copiarAlPortapapeles(String texto) {
+    // Implementar lógica de copiado
+    print('Código QR copiado: $texto');
+  }
+
   void _crearGasto() async {
     try {
-      // Mostrar el modal de prueba primero para verificar funcionamiento
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -84,164 +84,79 @@ class _ReportesListState extends State<ReportesList> {
             Navigator.pop(context);
             _continuarConPolitica(politica);
           },
-          onCancel: () {
-            Navigator.pop(context);
-          },
+          onCancel: () => Navigator.pop(context),
         ),
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al abrir selección de política: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  // Método para continuar después de seleccionar la política
-  void _continuarConPolitica(DropdownOption politica) {
-    print('🎯 Política seleccionada: ${politica.value} (ID: ${politica.id})');
-
-    // Mostrar confirmación con la política seleccionada
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(child: Text('Política seleccionada: ${politica.value}')),
-            ],
-          ),
-          backgroundColor: Colors.indigo,
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(
-            label: 'Continuar',
-            textColor: Colors.white,
-            onPressed: () {
-              _navegarSegunPolitica(politica);
-            },
-          ),
-        ),
+      _mostrarSnackBar(
+        mensaje: 'Error al abrir selección de política: $e',
+        color: Colors.red,
       );
     }
   }
 
-  // Método para navegar según la política seleccionada
-  void _navegarSegunPolitica(DropdownOption politica) {
-    // TODO: Implementar navegación específica según la política
-    // Aquí puedes agregar la lógica de navegación que necesites
-
-    // Ejemplo de cómo podrías manejar diferentes políticas:
-    switch (politica.value.toUpperCase()) {
-      case 'GENERAL':
-        // Navegar a pantalla de gasto general
-        break;
-      case 'GASTOS DE MOVILIDAD':
-        // Navegar a pantalla de gasto de movilidad
-        break;
-      default:
-        // Pantalla por defecto
-        break;
-    }
-
-    // Aquí podrías navegar a diferentes pantallas:
-    // Navigator.push(context, MaterialPageRoute(builder: (_) => PantallaEspecifica(politica: politica)));
+  void _continuarConPolitica(DropdownOption politica) {
+    _mostrarSnackBar(
+      mensaje: 'Política seleccionada: ${politica.value}',
+      icono: Icons.check_circle,
+      color: Colors.indigo,
+      accion: SnackBarAction(
+        label: 'Continuar',
+        onPressed: () => _navegarSegunPolitica(politica),
+      ),
+    );
   }
 
-  // Función para escanear documentos con IA
+  void _navegarSegunPolitica(DropdownOption politica) {
+    // TODO: Implementar navegación específica según la política
+    print('Navegando con política: ${politica.value}');
+  }
+
   void _escanearDocumento() async {
     try {
-      // Navegar a una pantalla de captura de documentos
       final result = await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const DocumentScannerScreen()),
       );
 
-      if (result != null && mounted) {
-        // Si result es un File (imagen capturada), procesarlo con IA
-        if (result is File) {
-          _procesarFacturaConIA(result);
-        } else {
-          // Comportamiento original
-          /*  ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Documento escaneado exitosamente'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-              action: SnackBarAction(
-                label: 'Ver',
-                textColor: Colors.white,
-                onPressed: () {
-                  print('Documento escaneado: $result');
-                },
-              ),
-            ),
-          ); */
-        }
+      if (result is File && mounted) {
+        _procesarFacturaConIA(result);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al escanear documento: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _mostrarSnackBar(
+        mensaje: 'Error al escanear documento: $e',
+        color: Colors.red,
+      );
     }
   }
 
-  // Función para procesar factura con IA
   void _procesarFacturaConIA(File imagenFactura) async {
-    // Mostrar indicador de procesamiento
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            SizedBox(width: 16),
-            Text('🤖 Procesando factura con IA...'),
-          ],
-        ),
-        backgroundColor: Colors.blue,
-        duration: Duration(seconds: 3),
-      ),
+    _mostrarSnackBar(
+      mensaje: 'Procesando factura con IA...',
+      icono: Icons.psychology,
+      color: Colors.blue,
+      duracion: const Duration(seconds: 5),
     );
 
     try {
-      // Extraer datos con IA
       final datosExtraidos = await FacturaIA.extraerDatos(imagenFactura);
 
       if (datosExtraidos.isNotEmpty && !datosExtraidos.containsKey('Error')) {
         _mostrarDatosExtraidos(datosExtraidos);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudieron extraer datos de la factura'),
-            backgroundColor: Colors.orange,
-          ),
+        _mostrarSnackBar(
+          mensaje: 'No se pudieron extraer datos de la factura',
+          color: Colors.orange,
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error procesando con IA: $e'),
-          backgroundColor: Colors.red,
-        ),
+      _mostrarSnackBar(
+        mensaje: 'Error procesando con IA: $e',
+        color: Colors.red,
       );
     }
   }
 
-  // Función para mostrar los datos extraídos
   void _mostrarDatosExtraidos(Map<String, String> datos) {
     showDialog(
       context: context,
@@ -251,7 +166,7 @@ class _ReportesListState extends State<ReportesList> {
             children: [
               Icon(Icons.psychology, color: Colors.green),
               SizedBox(width: 8),
-              Text('🤖 Datos Extraídos por IA'),
+              Text('Datos Extraídos por IA'),
             ],
           ),
           content: SingleChildScrollView(
@@ -260,68 +175,13 @@ class _ReportesListState extends State<ReportesList> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Campos detectados para el modal peruano:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  'Campos detectados:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
-                ...datos.entries
-                    .map(
-                      (entry) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              width: 80,
-                              child: Text(
-                                '${entry.key}:',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                entry.value,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
+                ...datos.entries.map((entry) => _buildDatoItem(entry)),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info, color: Colors.blue, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Estos datos se pueden usar automáticamente en el modal de factura peruana',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.blue[700],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildInfoBox(),
               ],
             ),
           ),
@@ -333,20 +193,7 @@ class _ReportesListState extends State<ReportesList> {
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
-                // Aquí puedes agregar lógica para usar los datos en el modal
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '✅ ${datos.length} campos extraídos listos para usar',
-                    ),
-                    backgroundColor: Colors.green,
-                    action: SnackBarAction(
-                      label: 'Abrir Modal',
-                      textColor: Colors.white,
-                      onPressed: () {},
-                    ),
-                  ),
-                );
+                _usarDatosEnModal(datos);
               },
               icon: const Icon(Icons.assignment),
               label: const Text('Usar en Modal'),
@@ -361,8 +208,154 @@ class _ReportesListState extends State<ReportesList> {
     );
   }
 
+  Widget _buildDatoItem(MapEntry<String, String> entry) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '${entry.key}:',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.green,
+              ),
+            ),
+          ),
+          Expanded(child: Text(entry.value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoBox() {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info, color: Colors.blue, size: 16),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Estos datos se pueden usar automáticamente en el modal de factura',
+              style: TextStyle(fontSize: 12, color: Colors.blue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _usarDatosEnModal(Map<String, String> datos) {
+    _mostrarSnackBar(
+      mensaje: '${datos.length} campos extraídos listos para usar',
+      icono: Icons.check_circle,
+      color: Colors.green,
+      accion: SnackBarAction(
+        label: 'Abrir Modal',
+        onPressed: () {
+          // TODO: Abrir modal con los datos
+        },
+      ),
+    );
+  }
+
+  void _mostrarSnackBar({
+    required String mensaje,
+    IconData? icono,
+    required Color color,
+    SnackBarAction? accion,
+    Duration duracion = const Duration(seconds: 3),
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            if (icono != null) ...[
+              Icon(icono, color: Colors.white),
+              const SizedBox(width: 8),
+            ],
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: color,
+        duration: duracion,
+        action: accion,
+      ),
+    );
+  }
+
+  // ============ LÓGICA DE FILTRADO ============
+
+  List<Reporte> _filtrarReportes(EstadoReporte filtro) {
+    switch (filtro) {
+      case EstadoReporte.borrador:
+        return widget.reportes
+            .where((r) => r.destino?.toUpperCase() == 'B')
+            .toList();
+      case EstadoReporte.enviado:
+        return widget.reportes
+            .where((r) => r.destino?.toUpperCase() == 'E')
+            .toList();
+      case EstadoReporte.todos:
+      default:
+        return widget.reportes;
+    }
+  }
+
+  // ============ UI PRINCIPAL ============
+
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: Text(_filtroTitles[_filtroActual]!),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              labelColor: Colors.indigo,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: Colors.indigo,
+              indicatorSize: TabBarIndicatorSize.tab,
+              onTap: (index) {
+                setState(() {
+                  _filtroActual = EstadoReporte.values[index];
+                });
+              },
+              tabs: const [
+                Tab(text: "Todos"),
+                Tab(text: "Borradores"),
+                Tab(text: "Enviados"),
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: _buildBody(),
+      floatingActionButton: _buildSpeedDial(),
+    );
+  }
+
+  Widget _buildBody() {
     if (widget.isLoading) {
       return const Center(
         child: Column(
@@ -376,225 +369,270 @@ class _ReportesListState extends State<ReportesList> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.white, // COLOR DE FONDO DE REPORTE LIST
-      body: DefaultTabController(
-        length: 3,
-        child: Column(
-          children: [
-            const TabBar(
-              labelColor: Colors.indigo,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: Colors.indigo,
-              tabs: [
-                Tab(text: "Todos"),
-                Tab(text: "Borradores"),
-                Tab(text: "Enviados"),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildList(EstadoReporte.todos),
-                  _buildList(EstadoReporte.borrador),
-                  _buildList(EstadoReporte.enviado),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-
-      // 👇 FAB expandible
-      floatingActionButton: SpeedDial(
-        icon: Icons.add,
-        activeIcon: Icons.close,
-        iconTheme: const IconThemeData(color: Colors.white),
-        backgroundColor: const Color.fromARGB(255, 31, 98, 213),
-        overlayColor: Colors.black,
-        overlayOpacity: 0.5,
-        spacing: 12,
-        spaceBetweenChildren: 8,
-        children: [
-          SpeedDialChild(
-            child: const Icon(Icons.document_scanner, color: Colors.white),
-            backgroundColor: Colors.green,
-            label: 'Escanear + IA',
-            onTap: _escanearDocumento,
-          ),
-
-          SpeedDialChild(
-            child: const Icon(Icons.qr_code_scanner, color: Colors.white),
-            backgroundColor: Colors.blue,
-            label: 'Lector de códigos',
-            onTap: _abrirEscaneadorQR,
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.note_add, color: Colors.white),
-            backgroundColor: Colors.indigo,
-            label: 'Crear gasto',
-            onTap: _crearGasto,
-          ),
-        ],
-      ),
+    return TabBarView(
+      children: [
+        _buildListaReportes(EstadoReporte.todos),
+        _buildListaReportes(EstadoReporte.borrador),
+        _buildListaReportes(EstadoReporte.enviado),
+      ],
     );
   }
 
-  Widget _buildList(EstadoReporte filtro) {
-    List<Reporte> data;
-
-    switch (filtro) {
-      case EstadoReporte.borrador:
-        data = widget.reportes
-            .where((r) => r.destino?.toUpperCase() == 'B')
-            .toList();
-        break;
-      case EstadoReporte.enviado:
-        data = widget.reportes
-            .where((r) => r.destino?.toUpperCase() == 'E')
-            .toList();
-        break;
-      case EstadoReporte.todos:
-        data = widget.reportes;
-        break;
-    }
+  Widget _buildListaReportes(EstadoReporte filtro) {
+    final reportesFiltrados = _filtrarReportes(filtro);
 
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
-      child: data.isEmpty
-          ? ListView(
-              children: const [
-                SizedBox(height: 100),
-                Center(
-                  child: Text(
-                    "No hay reportes disponibles",
-                    style: TextStyle(color: Colors.black, fontSize: 16),
-                  ),
-                ),
-              ],
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: data.length,
+      backgroundColor: Colors.white,
+      color: Colors.indigo,
+      child: reportesFiltrados.isEmpty
+          ? _buildEstadoVacio(filtro)
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: reportesFiltrados.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
-                final reporte = data[index];
-                final fechaOriginal = DateTime.tryParse(reporte.fecha ?? '');
-                final fechaCorta = fechaOriginal != null
-                    ? DateFormat('yyyy/MM/dd').format(fechaOriginal)
-                    : 'Fecha inválida';
-
-                return GestureDetector(
+                return ReporteCard(
+                  reporte: reportesFiltrados[index],
                   onTap: widget.onTap != null
-                      ? () => widget.onTap!(reporte)
+                      ? () => widget.onTap!(reportesFiltrados[index])
                       : null,
-                  child: Card(
-                    color: Colors.white,
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    margin: const EdgeInsets.symmetric(vertical: 2),
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header con número de reporte y estado
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '${reporte.ruc} ',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              Text(
-                                '${reporte.total} PEN',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.indigo,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '${reporte.categoria} ',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              Chip(
-                                label: Text(
-                                  '${reporte.destino}',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                backgroundColor: _getEstadoColor(
-                                  reporte.destino,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 1,
-                                  vertical: 0,
-                                ),
-                                labelPadding: const EdgeInsets.symmetric(
-                                  horizontal: 1,
-                                ),
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                              ),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                fechaCorta,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 1),
-                        ],
-                      ),
-                    ),
-                  ),
                 );
               },
             ),
     );
   }
 
-  Color? _getEstadoColor(String? estado) {
+  Widget _buildEstadoVacio(EstadoReporte filtro) {
+    final Map<EstadoReporte, Map<String, dynamic>> emptyStates = {
+      EstadoReporte.todos: {
+        'icon': Icons.receipt_long,
+        'title': 'No hay reportes disponibles',
+        'subtitle': 'Crea tu primer gasto usando el botón +',
+      },
+      EstadoReporte.borrador: {
+        'icon': Icons.drafts,
+        'title': 'No hay borradores',
+        'subtitle': 'Los gastos en borrador aparecerán aquí',
+      },
+      EstadoReporte.enviado: {
+        'icon': Icons.send,
+        'title': 'No hay reportes enviados',
+        'subtitle': 'Los reportes enviados aparecerán aquí',
+      },
+    };
+
+    final state = emptyStates[filtro]!;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              state['icon'] as IconData,
+              size: 80,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              state['title'] as String,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              state['subtitle'] as String,
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  SpeedDial _buildSpeedDial() {
+    return SpeedDial(
+      icon: Icons.add,
+      activeIcon: Icons.close,
+      iconTheme: const IconThemeData(color: Colors.white),
+      backgroundColor: Colors.indigo,
+      activeBackgroundColor: Colors.indigo.shade700,
+      overlayColor: Colors.black54,
+      overlayOpacity: 0.4,
+      spacing: 12,
+      spaceBetweenChildren: 12,
+      children: [
+        SpeedDialChild(
+          child: const Icon(Icons.document_scanner, color: Colors.white),
+          backgroundColor: Colors.green.shade600,
+          label: 'Escanear + IA',
+          labelStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+          onTap: _escanearDocumento,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+          backgroundColor: Colors.blue.shade600,
+          label: 'Lector de códigos',
+          labelStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+          onTap: _abrirEscaneadorQR,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.note_add, color: Colors.white),
+          backgroundColor: Colors.indigo.shade600,
+          label: 'Crear gasto',
+          labelStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+          onTap: _crearGasto,
+        ),
+      ],
+    );
+  }
+}
+
+// ============ WIDGET SEPARADO PARA EL CARD ============
+
+class ReporteCard extends StatelessWidget {
+  final Reporte reporte;
+  final VoidCallback? onTap;
+
+  const ReporteCard({super.key, required this.reporte, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final fechaOriginal = DateTime.tryParse(reporte.fecha ?? '');
+    final fechaFormateada = fechaOriginal != null
+        ? DateFormat('dd/MM/yyyy').format(fechaOriginal)
+        : 'Fecha inválida';
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header con RUC y monto
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      reporte.ruc ?? 'Sin RUC',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '${reporte.total} PEN',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.indigo,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Categoría y estado
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      reporte.categoria ?? 'Sin categoría',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _buildEstadoChip(reporte.destino),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Fecha
+              Text(
+                fechaFormateada,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEstadoChip(String? estado) {
+    final estadoInfo = _getEstadoInfo(estado);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: estadoInfo.color,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        estadoInfo.texto,
+        style: const TextStyle(
+          fontSize: 11,
+          color: Colors.white,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  _EstadoInfo _getEstadoInfo(String? estado) {
     switch (estado?.toUpperCase()) {
       case 'S':
-        return Colors.green[400];
+        return _EstadoInfo('Sincronizado', Colors.green);
       case 'P':
-        return Colors.orange[400];
-      case 'E': // Enviado
-        return Colors.blue[400];
-      case 'B': // Borrador
-        return Colors.grey[400];
+        return _EstadoInfo('Pendiente', Colors.orange);
+      case 'E':
+        return _EstadoInfo('Enviado', Colors.blue);
+      case 'B':
+        return _EstadoInfo('Borrador', Colors.grey);
       case 'C':
-        return Colors.green[700];
+        return _EstadoInfo('Completado', Colors.green.shade700);
       case 'F':
-        return Colors.red[400];
+        return _EstadoInfo('Fallido', Colors.red);
       case 'SYNC':
-        return Colors.teal[400];
+        return _EstadoInfo('Sincronizando', Colors.teal);
       default:
-        return Colors.grey[400];
+        return _EstadoInfo('Desconocido', Colors.grey);
     }
   }
+}
+
+class _EstadoInfo {
+  final String texto;
+  final Color color;
+
+  _EstadoInfo(this.texto, this.color);
 }

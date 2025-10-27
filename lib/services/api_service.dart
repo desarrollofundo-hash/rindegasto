@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/reporte_model.dart';
 import '../models/reporte_informe_model.dart';
+import '../models/auditioria_model.dart';
 import '../models/dropdown_option.dart';
 import 'connectivity_helper.dart';
 
@@ -285,7 +286,7 @@ class ApiService {
     }
   }
 
-  Future<List<ReporteInforme>> getRendicionAuditoria({
+  Future<List<AuditoriaModel>> getRendicionAuditoria({
     required String id,
     required String idad,
     required String user,
@@ -356,13 +357,13 @@ class ApiService {
             return [];
           }
 
-          final reportes = <ReporteInforme>[];
+          final auditorias = <AuditoriaModel>[];
           int errores = 0;
 
           for (int i = 0; i < jsonData.length; i++) {
             try {
-              final reporte = ReporteInforme.fromJson(jsonData[i]);
-              reportes.add(reporte);
+              final auditoria = AuditoriaModel.fromJson(jsonData[i]);
+              auditorias.add(auditoria);
             } catch (e) {
               errores++;
               /*               debugPrint('⚠️ Error al parsear item $i: $e');
@@ -379,9 +380,9 @@ class ApiService {
           }
 
           /*    debugPrint(
-            '✅ ${reportes.length} reportes procesados correctamente ($errores errores)',
+            '✅ ${auditorias.length} auditorias procesados correctamente ($errores errores)',
           ); */
-          return reportes;
+          return auditorias;
         } catch (e) {
           debugPrint('❌ Error al parsear JSON: $e');
           debugPrint(

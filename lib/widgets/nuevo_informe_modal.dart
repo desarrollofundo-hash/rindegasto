@@ -206,11 +206,12 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
           ),
 
           // Botones de acción
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              border: Border(top: BorderSide(color: Colors.grey.shade300)),
+          Padding(
+            padding: const EdgeInsets.only(
+              left: 55,
+              right: 55,
+              top: 10,
+              bottom: 55,
             ),
             child: Row(
               children: [
@@ -222,11 +223,10 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       side: BorderSide(color: Colors.grey.shade400),
-                      foregroundColor: Colors.grey.shade700,
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 20),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed:
@@ -281,7 +281,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
                 color: Colors.black87,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
 
             TextFormField(
               controller: _tituloController,
@@ -332,7 +332,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
               },
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
 
             // Campo de nota
             TextFormField(
@@ -369,8 +369,6 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
               textCapitalization: TextCapitalization.sentences,
             ),
 
-            const SizedBox(height: 24),
-
             // Dropdown de políticas
             const Text(
               'Política Aplicable',
@@ -383,61 +381,6 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
             const SizedBox(height: 12),
 
             _buildPoliticasDropdown(),
-
-            // Información adicional
-            if (_selectedPolitica != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.indigo.shade200, width: 1.5),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.indigo.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.check_circle,
-                            color: Colors.indigo.shade600,
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'Política seleccionada:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _selectedPolitica!.value,
-                      style: TextStyle(
-                        color: Colors.indigo.shade700,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
 
             // Espaciador para el scrolling
             const SizedBox(height: 20),

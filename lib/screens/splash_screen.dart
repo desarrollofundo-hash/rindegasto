@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 
@@ -11,99 +12,140 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  // Constantes mejoradas
+  // Constantes
   static const Duration _splashDuration = Duration(seconds: 3);
-  static const Duration _animationDuration = Duration(milliseconds: 1200);
-  static const Duration _transitionDuration = Duration(milliseconds: 600);
+  static const Duration _animationDuration = Duration(milliseconds: 2500);
 
-  // Paleta de colores moderna
-  static const Color _primaryColor = Color(0xFF6366F1);
-  static const Color _secondaryColor = Color(0xFF8B5CF6);
-  static const Color _accentColor = Color(0xFF06D6A0);
-  static const Color _textColor = Colors.white;
-  static const Color _secondaryTextColor = Color(0xFFE2E8F0);
+  // Colores dinámicos basados en tema
+  Color get _primaryColor => Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xFF60A5FA) // Azul más claro para tema oscuro
+      : const Color(0xFF3B82F6); // Azul para tema claro
 
-  // Gradientes modernos
-  static const List<Color> _gradientColors = [
-    _primaryColor,
-    _secondaryColor,
-    Color(0xFF7E22CE),
-  ];
+  Color get _secondaryColor => Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xFF3B82F6) // Azul oscuro para tema oscuro
+      : const Color(0xFF1E40AF); // Azul muy oscuro para tema claro
+
+  Color get _accentColor => Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xFF34D399) // Verde más brillante para tema oscuro
+      : const Color(0xFF10B981); // Verde para tema claro
+
+  Color get _backgroundStart => Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xFF1F2937) // Gris oscuro
+      : const Color(0xFFE0F2FE); // Azul muy claro
+
+  Color get _backgroundEnd => Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xFF111827) // Gris más oscuro
+      : const Color(0xFFF0FDF4); // Verde muy claro
+
+  Color get _textColor => Theme.of(context).brightness == Brightness.dark
+      ? Colors.white
+      : const Color(0xFF1F2937); // Gris oscuro
 
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
   late Animation<Offset> _slideAnimation;
-  late Animation<double> _blurAnimation;
+  late Animation<double> _rotationAnimation;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _textFadeAnimation;
+  late Animation<double> _progressAnimation;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
     super.initState();
+    // Detectar preferencia del sistema para reducir animaciones
+    try {
+      _reduceMotion = WidgetsBinding.instance.window.accessibilityFeatures.reduceMotion;
+    } catch (_) {
+      _reduceMotion = false;
+    }
+
     _initializeAnimations();
     _navigateToLogin();
   }
 
   void _initializeAnimations() {
+    // Si el usuario ha pedido reducir las animaciones, inicializamos
+    // el controller en el estado final para evitar animaciones costosas.
     _controller = AnimationController(
       vsync: this,
       duration: _animationDuration,
     );
 
-    _scaleAnimation =
-        TweenSequence<double>([
-          TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.1), weight: 50),
-          TweenSequenceItem(tween: Tween(begin: 1.1, end: 1.0), weight: 50),
-        ]).animate(
-          CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic),
-        );
-
+    // Logo aparece primero (0.0 - 0.4)
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
       ),
     );
 
+    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.1, 0.5, curve: Curves.elasticOut),
+      ),
+    );
+
+    _rotationAnimation = Tween<double>(begin: -0.2, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.4, curve: Curves.easeOutBack),
+      ),
+    );
+
+    // Texto aparece después (0.3 - 0.7)
     _slideAnimation =
         Tween<Offset>(begin: const Offset(0.0, 0.3), end: Offset.zero).animate(
           CurvedAnimation(
             parent: _controller,
-            curve: const Interval(0.3, 1.0, curve: Curves.easeOutCubic),
+            curve: const Interval(0.3, 0.7, curve: Curves.easeOutCubic),
           ),
         );
 
-    _blurAnimation = Tween<double>(
-      begin: 10.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _textFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.3, 0.6, curve: Curves.easeOut),
+      ),
+    );
+
+    // Indicador aparece al final (0.6 - 1.0)
+    _pulseAnimation =
+        TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.2), weight: 50),
+          TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 50),
+        ]).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.6, 1.0, curve: Curves.easeInOut),
+          ),
+        );
+
+    // Progress animation (0.6 - 1.0)
+    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.6, 1.0, curve: Curves.linear),
+      ),
+    );
 
     _controller.forward();
   }
 
   void _navigateToLogin() {
-    Timer(_splashDuration, () {
+    Duration delay = _splashDuration;
+    if (_reduceMotion) {
+      // Si se reduce movimiento, navegamos antes para no mantener la pantalla
+      // innecesariamente.
+      delay = const Duration(milliseconds: 600);
+    }
+
+    Timer(delay, () {
       Navigator.pushReplacement(
         context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const LoginScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final curve = Curves.easeInOutCubic;
-            final curvedAnimation = CurvedAnimation(
-              parent: animation,
-              curve: curve,
-            );
-
-            return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.0, 0.1),
-                end: Offset.zero,
-              ).animate(curvedAnimation),
-              child: FadeTransition(opacity: curvedAnimation, child: child),
-            );
-          },
-          transitionDuration: _transitionDuration,
-        ),
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     });
   }
@@ -118,34 +160,49 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: _buildBackgroundDecoration(),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [_backgroundStart, _backgroundEnd],
+            stops: [0.0, 1.0],
+          ),
+        ),
         child: SafeArea(
           child: Stack(
             children: [
-              // Efectos de fondo
-              _buildBackgroundEffects(),
+              // Partículas de fondo
+              RepaintBoundary(child: BackgroundParticles(reduceMotion: _reduceMotion)),
 
               // Contenido principal
               Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo animado
-                      _buildAnimatedLogo(),
-                      const SizedBox(height: 48),
+                      // Logo animado mejorado
+                      _buildLogo(),
+                      const SizedBox(height: 40),
 
-                      // Texto principal
-                      _buildWelcomeText(),
-                      const SizedBox(height: 32),
+                      // Texto principal con animación de slide
+                      SlideTransition(
+                        position: _slideAnimation,
+                        child: FadeTransition(
+                          opacity: _textFadeAnimation,
+                          child: Column(
+                            children: [
+                              _buildTitle(),
+                              const SizedBox(height: 20),
+                              _buildSubtitle(),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 60),
 
-                      // Indicador de progreso
-                      _buildModernProgressIndicator(),
-                      const SizedBox(height: 32),
-
-                      // Texto de carga
-                      _buildLoadingText(),
+                      // Indicador de carga con pulso
+                      _buildLoadingIndicator(),
                     ],
                   ),
                 ),
@@ -157,90 +214,57 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  BoxDecoration _buildBackgroundDecoration() {
-    return const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: _gradientColors,
-        stops: [0.0, 0.6, 1.0],
-      ),
-    );
-  }
+  Widget _buildLogo() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final logoSize = screenWidth < 400 ? 100.0 : 120.0;
+    final iconSize = screenWidth < 400 ? 50.0 : 60.0;
 
-  Widget _buildBackgroundEffects() {
-    return AnimatedBuilder(
-      animation: _blurAnimation,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            // Partículas de fondo
-            Positioned(
-              top: 100,
-              left: 50,
-              child: _FloatingParticle(size: 60, delay: 0.0),
-            ),
-            Positioned(
-              bottom: 150,
-              right: 70,
-              child: _FloatingParticle(size: 40, delay: 0.3),
-            ),
-            Positioned(
-              top: 200,
-              right: 100,
-              child: _FloatingParticle(size: 80, delay: 0.6),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildAnimatedLogo() {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Colors.white, Color(0xFFF1F5F9)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                // Icono principal
-                const Icon(Icons.flutter_dash, size: 100, color: _primaryColor),
-
-                // Efecto de brillo
-                Positioned.fill(
-                  child: ClipOval(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          colors: [
-                            Colors.white.withOpacity(0.3),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
+        return Transform(
+          transform: Matrix4.identity()
+            ..scale(_reduceMotion ? 1.0 : _scaleAnimation.value)
+            ..rotateZ(_reduceMotion ? 0.0 : _rotationAnimation.value),
+          alignment: Alignment.center,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {}, // Sin acción, solo para el efecto visual
+              borderRadius: BorderRadius.circular(logoSize / 2),
+              child: Container(
+                width: logoSize,
+                height: logoSize,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_primaryColor, _secondaryColor],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primaryColor.withOpacity(0.4),
+                      blurRadius: 25,
+                      offset: const Offset(0, 15),
                     ),
+                    BoxShadow(
+                      color: _accentColor.withOpacity(0.2),
+                      blurRadius: 15,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
+                child: Semantics(
+                  label: 'Logo FacturasAsa',
+                  image: true,
+                  child: Icon(
+                    Icons.account_balance_wallet,
+                    color: Colors.white,
+                    size: iconSize,
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -248,152 +272,226 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _buildWelcomeText() {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Column(
-          children: [
-            Text(
-              "Bienvenido",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 42,
-                fontWeight: FontWeight.w800,
-                color: _textColor,
-                height: 1.1,
-                letterSpacing: -0.5,
-                shadows: [
-                  Shadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              "al sistema",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w300,
-                color: _secondaryTextColor,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
+  Widget _buildTitle() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fontSize = screenWidth < 400 ? 28.0 : 36.0;
+
+    if (_reduceMotion) {
+      return Text(
+        'FacturasAsa',
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: _textColor,
+          letterSpacing: -0.5,
         ),
+      );
+    }
+
+    return TypingText(
+      text: "FacturasAsa",
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.bold,
+        color: _textColor,
+        letterSpacing: -0.5,
+      ),
+      typingSpeed: const Duration(milliseconds: 150),
+    );
+  }
+
+  Widget _buildSubtitle() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fontSize = screenWidth < 400 ? 14.0 : 16.0;
+
+    return Text(
+      "Gestión financiera inteligente",
+      style: TextStyle(
+        fontSize: fontSize,
+        color: _textColor.withOpacity(0.7),
+        fontWeight: FontWeight.w400,
       ),
     );
   }
 
-  Widget _buildModernProgressIndicator() {
-    return SizedBox(
-      width: 200,
-      height: 6,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: _splashDuration,
-        curve: Curves.easeInOutCubic,
-        builder: (context, value, child) {
-          return Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: _textColor.withOpacity(0.1),
-            ),
-            child: Stack(
-              children: [
-                // Barra de progreso con gradiente
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 100),
-                  width: 200 * value,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    gradient: const LinearGradient(
-                      colors: [_accentColor, Color(0xFF4ADE80)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _accentColor.withOpacity(0.3),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildLoadingText() {
-    return FadeTransition(
-      opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(
-          parent: _controller,
-          curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            "Inicializando",
-            style: TextStyle(
-              color: _secondaryTextColor,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 16,
-            height: 16,
+  Widget _buildLoadingIndicator() {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_pulseAnimation, _progressAnimation]),
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _reduceMotion ? 1.0 : _pulseAnimation.value,
+          child: SizedBox(
+            width: 40,
+            height: 40,
             child: CircularProgressIndicator(
-              strokeWidth: 2,
+              value: _progressAnimation.value,
               valueColor: AlwaysStoppedAnimation<Color>(_accentColor),
+              strokeWidth: 3,
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-// Componente adicional para partículas flotantes
-class _FloatingParticle extends StatefulWidget {
-  final double size;
-  final double delay;
+// Widget para efecto Shimmer
+class Shimmer extends StatefulWidget {
+  final Widget child;
+  final Duration duration;
 
-  const _FloatingParticle({required this.size, required this.delay});
+  const Shimmer({
+    super.key,
+    required this.child,
+    this.duration = const Duration(milliseconds: 1500),
+  });
 
   @override
-  State<_FloatingParticle> createState() => _FloatingParticleState();
+  State<Shimmer> createState() => _ShimmerState();
 }
 
-class _FloatingParticleState extends State<_FloatingParticle>
+class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: widget.duration)
+      ..repeat();
+
+    _animation = Tween<double>(
+      begin: -1.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.linear));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return ShaderMask(
+          shaderCallback: (bounds) {
+            // _animation.value va de -1.0 a 1.0; mapear a 0..1 para stops válidos
+            final center = (_animation.value + 1.0) / 2.0;
+            final left = (center - 0.25).clamp(0.0, 1.0);
+            final middle = center.clamp(0.0, 1.0);
+            final right = (center + 0.25).clamp(0.0, 1.0);
+
+            return LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Colors.white.withOpacity(0.0),
+                Colors.white.withOpacity(0.85),
+                Colors.white.withOpacity(0.0),
+              ],
+              stops: [left, middle, right],
+            ).createShader(bounds);
+          },
+          child: widget.child,
+        );
+      },
+    );
+  }
+}
+
+// Widget para animación de escritura
+class TypingText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final Duration typingSpeed;
+
+  const TypingText({
+    super.key,
+    required this.text,
+    required this.style,
+    this.typingSpeed = const Duration(milliseconds: 100),
+  });
+
+  @override
+  State<TypingText> createState() => _TypingTextState();
+}
+
+class _TypingTextState extends State<TypingText> {
+  String _displayText = '';
+  int _currentIndex = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTyping();
+  }
+
+  void _startTyping() {
+    _timer = Timer.periodic(widget.typingSpeed, (timer) {
+      if (_currentIndex < widget.text.length) {
+        setState(() {
+          _displayText += widget.text[_currentIndex];
+          _currentIndex++;
+        });
+      } else {
+        _timer?.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(_displayText, style: widget.style);
+  }
+}
+
+// Widget para partículas de fondo
+class BackgroundParticles extends StatefulWidget {
+  final bool reduceMotion;
+
+  const BackgroundParticles({super.key, this.reduceMotion = false});
+
+  @override
+  State<BackgroundParticles> createState() => _BackgroundParticlesState();
+}
+
+class _BackgroundParticlesState extends State<BackgroundParticles>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  final List<Particle> _particles = [];
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 4),
+      duration: const Duration(seconds: 10),
       vsync: this,
-    )..repeat(reverse: true);
+    );
 
-    // Delay inicial
-    Future.delayed(Duration(milliseconds: (widget.delay * 1000).round()), () {
-      if (mounted) _controller.forward();
-    });
+    if (widget.reduceMotion) {
+      // No repetir la animación si el usuario solicita reducir movimiento;
+      // dejamos el controller en 0.0 (partículas estáticas)
+      _controller.value = 0.0;
+    } else {
+      _controller.repeat();
+    }
+
+    // Crear partículas con una sola instancia de Random
+    final rand = math.Random();
+    for (int i = 0; i < 20; i++) {
+      _particles.add(Particle(rand));
+    }
   }
 
   @override
@@ -407,28 +505,54 @@ class _FloatingParticleState extends State<_FloatingParticle>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _controller.value * 20 - 10),
-          child: Opacity(
-            opacity: 0.1 + _controller.value * 0.1,
-            child: Container(
-              width: widget.size,
-              height: widget.size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.white.withOpacity(0.5),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-            ),
-          ),
+        return CustomPaint(
+          painter: ParticlePainter(_particles, _controller.value),
+          size: Size.infinite,
         );
       },
     );
   }
+}
+
+class Particle {
+  final double x;
+  final double y;
+  final double size;
+  final double speed;
+  final double opacity;
+
+  Particle(math.Random rand)
+      : x = rand.nextDouble(),
+        y = rand.nextDouble(),
+        size = rand.nextDouble() * 2 + 1,
+        speed = rand.nextDouble() * 0.02 + 0.01,
+        opacity = rand.nextDouble() * 0.1 + 0.05;
+}
+
+class ParticlePainter extends CustomPainter {
+  final List<Particle> particles;
+  final double time;
+
+  ParticlePainter(this.particles, this.time);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (final particle in particles) {
+      final x = (particle.x + time * particle.speed) % 1.0;
+      final y = (particle.y + time * particle.speed * 0.5) % 1.0;
+
+      paint.color = Colors.white.withOpacity(particle.opacity);
+
+      canvas.drawCircle(
+        Offset(x * size.width, y * size.height),
+        particle.size,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant ParticlePainter oldDelegate) => true;
 }

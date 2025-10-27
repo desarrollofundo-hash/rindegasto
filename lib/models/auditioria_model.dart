@@ -51,7 +51,7 @@ class AuditoriaModel {
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
+      'idAd': id,
       'idInf': idInf,
       'idUser': idUser,
       'dni': dni,
@@ -79,7 +79,7 @@ class AuditoriaModel {
 
   factory AuditoriaModel.fromJson(Map<String, dynamic> map) {
     return AuditoriaModel(
-      id: map['id'],
+      id: map['idAd'],
       idInf: map['idInf'],
       idUser: map['idUser'],
       dni: map['dni'],
@@ -97,11 +97,11 @@ class AuditoriaModel {
       useEdit: map['useEdit'],
       useElim: map['useElim'],
       cantidad: map['cantidad'],
-      total: map['total'],
+      total: map['total']?.toDouble(),
       cantidadAprobado: map['cantidadAprobado'],
-      totalAprobado: map['totalAprobado'],
+      totalAprobado: map['totalAprobado']?.toDouble(),
       cantidadDesaprobado: map['cantidadDesaprobado'],
-      totalDesaprobado: map['totalDesaprobado'],
+      totalDesaprobado: map['totalDesaprobado']?.toDouble(),
     );
   }
 

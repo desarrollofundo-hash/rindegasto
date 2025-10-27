@@ -1517,7 +1517,7 @@ class _InformeFlowScreenState extends State<InformeFlowScreen> {
 
               // Botones
               Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 child: Row(
                   children: [
                     Expanded(

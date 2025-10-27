@@ -6,12 +6,15 @@ import '../widgets/reportes_list.dart';
 import '../widgets/edit_reporte_modal.dart';
 import '../widgets/nuevo_informe_modal.dart';
 import '../widgets/tabbed_screen.dart';
+import '../widgets/auditoria_list.dart';
+import '../widgets/auditoria_detalle_modal.dart';
 import '../models/gasto_model.dart';
 import '../models/reporte_informe_model.dart';
 import '../services/api_service.dart';
 import '../services/user_service.dart';
 import '../services/company_service.dart';
 import '../models/reporte_model.dart';
+import '../models/auditioria_model.dart';
 import './informes/detalle_informe_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -32,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Datos para informes y revisión
   List<ReporteInforme> _informes = [];
+  List<AuditoriaModel> _auditorias = [];
   final List<Gasto> gastosRecepcion = [];
 
   @override
@@ -39,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadReportes();
     _loadInformes();
+    _loadAuditorias();
   }
 
   @override
@@ -139,6 +144,71 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadAuditorias() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final auditorias = await _apiService.getRendicionAuditoria(
+        id: '1',
+        idad: '1',
+        user: UserService().currentUserCode,
+        ruc: CompanyService().companyRuc,
+      );
+      if (!mounted) return;
+
+      // Si no hay datos de la API, simular uno
+      if (auditorias.isEmpty) {
+        setState(() {
+          _auditorias = [
+            AuditoriaModel(
+              id: 1,
+              idInf: 1,
+              idUser: 1,
+              titulo: 'Auditoría de Ejemplo',
+              politica: 'Política de Auditoría Estándar',
+              estadoActual: 'En Progreso',
+              fecCre: '2023-10-09',
+              cantidad: 5,
+              total: 1000.0,
+            ),
+          ];
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _auditorias = auditorias;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Mostrar error en SnackBar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar auditorías: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Reintentar',
+              textColor: Colors.white,
+              onPressed: _loadAuditorias,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   // ========== MÉTODOS REUTILIZABLES ==========
 
   void _mostrarEditarPerfil(BuildContext context) {
@@ -175,6 +245,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _mostrarDetalleAuditoria(AuditoriaModel auditoria) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) =>
+          AuditoriaDetalleModal(auditoria: auditoria),
+    );
+  }
+
   void _mostrarEditarReporte(Reporte reporte) {
     showModalBottomSheet(
       context: context,
@@ -192,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPantallaInicio() {
     return Scaffold(
       appBar: CustomAppBar(
-        hintText: "Buscar reportes...",
+        hintText: "Buscar gastos...",
         onProfilePressed: () => _mostrarEditarPerfil(context),
         notificationCount: _notificaciones,
         onNotificationPressed: _decrementarNotificaciones,
@@ -252,13 +330,10 @@ class _HomeScreenState extends State<HomeScreen> {
         tabLabels: const ["Todos"],
         tabColors: const [Colors.green],
         tabViews: [
-          InformesReporteList(
-            informes: _informes,
-            auditoria: [],
-            onInformeUpdated: _actualizarInforme,
-            onInformeDeleted: _eliminarInforme,
-            showEmptyStateButton: false,
-            onRefresh: _loadInformes,
+          AuditoriaList(
+            auditorias: _auditorias,
+            onRefresh: _loadAuditorias,
+            onTap: _mostrarDetalleAuditoria,
           ),
         ],
       ),

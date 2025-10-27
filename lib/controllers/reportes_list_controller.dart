@@ -213,7 +213,7 @@ class ReportesListController {
                 builder: (context) => FacturaModalPeruOCR(
                   ocrData: ocrMap,
                   evidenciaFile: file,
-                  politicaSeleccionada: 'GENERAL',
+                  politicaSeleccionada: seleccion,
                   onSave: (facturaData, _) {
                     Navigator.of(context).pop();
                   },

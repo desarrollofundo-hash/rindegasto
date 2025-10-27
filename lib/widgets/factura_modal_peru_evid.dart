@@ -169,10 +169,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
 
   /// Cargar categorías desde la API
   Future<void> _loadCategorias() async {
-    if (!_politicaController.text.toLowerCase().contains('general')) {
-      return; // Solo cargar para política GENERAL
-    }
-
+    
     if (mounted) {
       setState(() {
         _isLoadingCategorias = true;
@@ -231,7 +228,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeruEvid> {
       text: widget.politicaSeleccionada,
     );
     _categoriaController = TextEditingController(text: '');
-    _tipoGastoController = TextEditingController(text: '');
+    _tipoGastoController = TextEditingController(
+        text: CompanyService().currentCompany?.tipogasto ?? '',
+        );
     _rucController = TextEditingController(
       text: widget.facturaData.rucEmisor ?? '',
     );

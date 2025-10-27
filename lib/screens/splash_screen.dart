@@ -56,7 +56,8 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     // Detectar preferencia del sistema para reducir animaciones
     try {
-      _reduceMotion = WidgetsBinding.instance.window.accessibilityFeatures.reduceMotion;
+      _reduceMotion =
+          WidgetsBinding.instance.window.accessibilityFeatures.reduceMotion;
     } catch (_) {
       _reduceMotion = false;
     }
@@ -172,7 +173,9 @@ class _SplashScreenState extends State<SplashScreen>
           child: Stack(
             children: [
               // Partículas de fondo
-              RepaintBoundary(child: BackgroundParticles(reduceMotion: _reduceMotion)),
+              RepaintBoundary(
+                child: BackgroundParticles(reduceMotion: _reduceMotion),
+              ),
 
               // Contenido principal
               Center(
@@ -522,11 +525,11 @@ class Particle {
   final double opacity;
 
   Particle(math.Random rand)
-      : x = rand.nextDouble(),
-        y = rand.nextDouble(),
-        size = rand.nextDouble() * 2 + 1,
-        speed = rand.nextDouble() * 0.02 + 0.01,
-        opacity = rand.nextDouble() * 0.1 + 0.05;
+    : x = rand.nextDouble(),
+      y = rand.nextDouble(),
+      size = rand.nextDouble() * 2 + 1,
+      speed = rand.nextDouble() * 0.02 + 0.01,
+      opacity = rand.nextDouble() * 0.1 + 0.05;
 }
 
 class ParticlePainter extends CustomPainter {

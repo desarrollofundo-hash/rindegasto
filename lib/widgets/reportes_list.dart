@@ -30,13 +30,32 @@ class ReportesList extends StatefulWidget {
   State<ReportesList> createState() => _ReportesListState();
 }
 
-class _ReportesListState extends State<ReportesList> {
+class _ReportesListState extends State<ReportesList> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   EstadoReporte _filtroActual = EstadoReporte.todos;
   final Map<EstadoReporte, String> _filtroTitles = {
     EstadoReporte.todos: 'Todos los reportes',
     EstadoReporte.borrador: 'Borradores',
     EstadoReporte.enviado: 'Reportes enviados',
   };
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: EstadoReporte.values.length, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      setState(() {
+        _filtroActual = EstadoReporte.values[_tabController.index];
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   // ============ LÓGICA DE NEGOCIO ============
 
@@ -330,17 +349,13 @@ class _ReportesListState extends State<ReportesList> {
           child: Align(
             alignment: Alignment.centerLeft,
             child: TabBar(
+              controller: _tabController,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               labelColor: Colors.indigo,
               unselectedLabelColor: Colors.grey,
               indicatorColor: Colors.indigo,
               indicatorSize: TabBarIndicatorSize.tab,
-              onTap: (index) {
-                setState(() {
-                  _filtroActual = EstadoReporte.values[index];
-                });
-              },
               tabs: const [
                 Tab(text: "Todos"),
                 Tab(text: "Borradores"),
@@ -370,6 +385,7 @@ class _ReportesListState extends State<ReportesList> {
     }
 
     return TabBarView(
+      controller: _tabController,
       children: [
         _buildListaReportes(EstadoReporte.todos),
         _buildListaReportes(EstadoReporte.borrador),

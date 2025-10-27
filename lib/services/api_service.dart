@@ -8,6 +8,7 @@ import '../models/reporte_model.dart';
 import '../models/reporte_informe_model.dart';
 import '../models/dropdown_option.dart';
 import 'connectivity_helper.dart';
+import 'package:path/path.dart' as path;
 
 class ApiService {
   /// Base URL de la API
@@ -82,7 +83,9 @@ class ApiService {
         // Loguear un preview del body para depuración (máx 2000 chars)
         try {
           final raw = response.body;
-          final preview = raw.length > 2000 ? raw.substring(0, 2000) + '... [truncated]' : raw;
+          final preview = raw.length > 2000
+              ? raw.substring(0, 2000) + '... [truncated]'
+              : raw;
           debugPrint('📄 Response body preview (first 2000 chars): $preview');
         } catch (e) {
           debugPrint('⚠️ No se pudo imprimir preview del body: $e');
@@ -160,8 +163,8 @@ class ApiService {
         final preview = rawBody.isEmpty
             ? ''
             : (rawBody.length > 800
-                ? rawBody.substring(0, 800) + '... [truncated]'
-                : rawBody);
+                  ? rawBody.substring(0, 800) + '... [truncated]'
+                  : rawBody);
 
         throw Exception(
           'Error del servidor (${response.statusCode}): ${serverMessage.isNotEmpty ? serverMessage : response.reasonPhrase}. BodyPreview: $preview',
@@ -325,7 +328,7 @@ class ApiService {
 
   //RENDICION AUDITORIA
   Future<List<AuditoriaModel>> getRendicionAuditoria({
-   required String idinf,
+    required String idinf,
     required String idad,
     required String user,
     required String ruc,
@@ -354,7 +357,7 @@ class ApiService {
 
       // Construir la URL con los parámetros dinámicos
       final uri = Uri.parse('$baseUrl/reporte/rendicionauditoria').replace(
-      queryParameters: {
+        queryParameters: {
           'idinf': idinf,
           'idad': idad,
           'user': user,
@@ -2334,6 +2337,38 @@ class ApiService {
     }
   }
 
+Future<String?> subirArchivo(String filePath) async {
+    debugPrint('🚀 Guardando archivo en Drive...');
+    debugPrint('📍 URL: $baseUrl/recibir/uploaddrive');
+
+    try {
+      final bytes = await File(filePath).readAsBytes();
+      final base64Data = base64Encode(bytes);
+      final fileName = path.basename(filePath);
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/recibir/uploaddrive'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'fileName': fileName, 'base64': base64Data}),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final body = response.body.trim();
+
+        // Si el backend devuelve directamente el ID como texto o número
+        debugPrint('✅ Archivo subido correctamente. ID: $body');
+        return body.replaceAll('"', ''); // por si viene entre comillas JSON
+      } else {
+        debugPrint('❌ Error en la petición: ${response.statusCode}');
+        debugPrint('Respuesta del servidor: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('🔥 Error subiendo archivo: $e');
+    }
+
+    return null;
+  }
+  
   // Cerrar el cliente cuando ya no se necesite
   void dispose() {
     client.close();

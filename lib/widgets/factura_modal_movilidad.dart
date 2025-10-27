@@ -137,7 +137,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
     final empresaSeleccionada = CompanyService().currentUserCompany;
 
     if (rucClienteEscaneado.isEmpty) {
-      return '';
+      return '❌ RUC cliente no coincide con $empresaSeleccionada';
     }
 
     if (rucEmpresaSeleccionada.isEmpty) {
@@ -164,6 +164,7 @@ class _FacturaModalMovilidadState extends State<FacturaModalMovilidad> {
         _destinoController.text.trim().isNotEmpty &&
         _motivoViajeController.text.trim().isNotEmpty &&
         _categoriaController.text.trim().isNotEmpty &&
+        _rucClienteController.text.trim().isNotEmpty &&
         (_selectedImage != null ||
             _selectedFile !=
                 null) && // ✅ Actualizado para aceptar archivos o imágenes

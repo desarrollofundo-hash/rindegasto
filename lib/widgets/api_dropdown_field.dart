@@ -71,20 +71,23 @@ class _ApiDropdownFieldState extends State<ApiDropdownField> {
   /// Carga las opciones desde la API
   Future<void> _loadOptions() async {
     if (_hasLoaded) return; // Evitar cargas múltiples
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final options = await widget.fetchOptions();
+      if (!mounted) return;
       setState(() {
         _options = options;
         _isLoading = false;
         _hasLoaded = true;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = e.toString().replaceAll('Exception: ', '');
@@ -94,9 +97,11 @@ class _ApiDropdownFieldState extends State<ApiDropdownField> {
 
   /// Reintenta cargar las opciones
   Future<void> _retryLoad() async {
-    setState(() {
-      _hasLoaded = false;
-    });
+    if (mounted) {
+      setState(() {
+        _hasLoaded = false;
+      });
+    }
     await _loadOptions();
   }
 

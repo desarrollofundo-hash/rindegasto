@@ -21,8 +21,8 @@ class ProfileModalWidgets {
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: 40,
-                  height: 4,
+                  width: 20,
+                  height: 2,
                   decoration: BoxDecoration(
                     color: controller.isDragging
                         ? Colors.grey[500]
@@ -71,27 +71,51 @@ class ProfileModalWidgets {
   }
 
   static Widget buildTitleSection(ProfileModalController controller) {
+    final userName = controller.getFieldValue(0);
+
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 200),
       opacity: controller.isDragging ? 0.7 : 1.0,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            "Perfil Profesional",
-            style: TextStyle(
+          // Línea de bienvenida (más pequeña) con mano animada
+          AnimatedBuilder(
+            animation: controller.handAnimation,
+            builder: (context, child) {
+              final angle = controller.handAnimation.value;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Bienvenido ',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  Transform.rotate(
+                    angle: angle,
+                    alignment: Alignment.bottomCenter,
+                    child: const Text('👋', style: TextStyle(fontSize: 25)),
+                  ),
+                ],
+              );
+            },
+          ),
+          // Nombre del usuario (resaltado)
+          Text(
+            userName.isNotEmpty ? userName : 'Perfil de Usuario',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               color: Color(0xFF1A1D1F),
               letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Actualiza tu información personal",
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w400,
             ),
           ),
         ],
@@ -116,79 +140,7 @@ class ProfileModalWidgets {
             cursor: controller.isDragging
                 ? SystemMouseCursors.basic
                 : SystemMouseCursors.click,
-            child: Column(
-              children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.blue[400]!, Colors.purple[400]!],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.person,
-                        size: 50,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(
-                                controller.avatarScale == 0.8 ? 0.3 : 0.1,
-                              ),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.camera_alt,
-                          size: 18,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: controller.isDragging ? 0.0 : 1.0,
-                  child: Text(
-                    "Toca para cambiar foto",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            child: Column(children: [Stack(alignment: Alignment.center)]),
           ),
         ),
       ),
@@ -236,7 +188,7 @@ class ProfileModalWidgets {
                 ],
                 delay: 200,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 10),
               buildAnimatedFormSection(
                 controller: controller,
                 title: "Información Personal",
@@ -257,7 +209,6 @@ class ProfileModalWidgets {
                 ],
                 delay: 0,
               ),
-              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -274,7 +225,7 @@ class ProfileModalWidgets {
   }) {
     return AnimatedContainer(
       duration: Duration(milliseconds: 300 + delay),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.grey[50],
         borderRadius: BorderRadius.circular(16),
@@ -319,7 +270,7 @@ class ProfileModalWidgets {
       duration: Duration(milliseconds: 400 + (index * 100)),
       curve: Curves.easeOutBack,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(bottom: 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -367,7 +318,7 @@ class ProfileModalWidgets {
                       : null,
                   decoration: InputDecoration(
                     hintText: isReadOnly ? null : hint,
-                    hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                    hintStyle: TextStyle(color: Colors.grey[100], fontSize: 14),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     border: InputBorder.none,
                   ),
@@ -417,7 +368,7 @@ class ProfileModalWidgets {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 width: double.infinity,
-                height: 50,
+                height: 40,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[600],
@@ -436,12 +387,12 @@ class ProfileModalWidgets {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               // Botón de cerrar sesión
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 width: double.infinity,
-                height: 50,
+                height: 40,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red[600],
@@ -460,23 +411,7 @@ class ProfileModalWidgets {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              // Botón secundario para solo cerrar el modal
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 300),
-                opacity: 1.0,
-                child: TextButton(
-                  onPressed: onCancel,
-                  child: Text(
-                    "Cancelar",
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 30),
             ],
           ),
         ),

@@ -1,15 +1,10 @@
-import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:intl/intl.dart';
+// intl and io are used in controller; removed from widget
 import '../models/dropdown_option.dart';
-import '../services/api_service.dart';
-import '../services/user_service.dart';
-import '../services/company_service.dart';
+// logic moved to controller
+import '../controllers/nuevo_gasto_movilidad_controller.dart';
 import '../screens/home_screen.dart';
 
 /// Modal para crear nuevo gasto de movilidad después de seleccionar política
@@ -30,401 +25,120 @@ class NuevoGastoMovilidad extends StatefulWidget {
 }
 
 class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
-  final ApiService _apiService = ApiService();
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late NuevoGastoMovilidadController controller;
+  // use controller.isScanning instead of local _isScanning
+  // Focus nodes for fields we want to scroll into view when focused
+  final FocusNode _focusProveedor = FocusNode();
+  final FocusNode _focusRuc = FocusNode();
+  final FocusNode _focusTipoDocumento = FocusNode();
+  final FocusNode _focusNota = FocusNode();
+  final FocusNode _focusOrigen = FocusNode();
+  final FocusNode _focusDestino = FocusNode();
+  final FocusNode _focusMotivo = FocusNode();
+  // GlobalKeys to reliably find the field contexts
+  final GlobalKey _keyDestino = GlobalKey();
+  final GlobalKey _keyMotivo = GlobalKey();
 
-  // Controladores principales
-  late TextEditingController _proveedorController;
-  late TextEditingController _fechaController;
-  late TextEditingController _totalController;
-  late TextEditingController _monedaController;
-  late TextEditingController _rucController;
-  late TextEditingController _serieFacturaController;
-  late TextEditingController _numeroFacturaController;
-  late TextEditingController _tipoDocumentoController;
-  late TextEditingController _numeroDocumentoController;
-  late TextEditingController _notaController;
-  late TextEditingController _rucClienteController;
-
-  // Controladores específicos de movilidad
-  late TextEditingController _origenController;
-  late TextEditingController _destinoController;
-  late TextEditingController _motivoViajeController;
-  late TextEditingController _tipoTransporteController;
-
-  // Variables para dropdowns
-
-  // Estados de carga
-  bool _isLoading = false;
-  bool _isLoadingCategorias = false;
-  bool _isLoadingTiposGasto = false;
-  bool _isScanning = false;
-
-  // Variables para el lector SUNAT
-  bool _hasScannedData = false;
-
-  // Datos para dropdowns
-  List<DropdownOption> _categoriasMovilidad = [];
-  List<DropdownOption> _tiposGasto = [];
-
-  // Errores
-  String? _error;
-
-  // Variables para dropdowns seleccionados
-  DropdownOption? _selectedCategoria;
-  DropdownOption? _selectedTipoGasto;
-
-  // Archivo seleccionado
-  File? _selectedImage;
-  File? _selectedFile;
-  String? _selectedFileType;
-  String? _selectedFileName;
-  final ImagePicker _picker = ImagePicker();
+  // Usar directamente controller.* desde el widget en lugar de getters intermedios
+  GlobalKey<FormState> get _formKey => controller.formKey;
 
   @override
   void initState() {
     super.initState();
-    _initializeControllers();
-    _loadCategorias();
-    _loadTiposGasto();
+    controller = NuevoGastoMovilidadController(
+      politicaSeleccionada: widget.politicaSeleccionada,
+    );
+    controller.addListener(_onControllerUpdated);
+    controller.initialize();
+    // Registrar listeners en FocusNodes para asegurar visibilidad
+    _focusProveedor.addListener(() => _ensureVisibleOnFocus(_focusProveedor));
+    _focusRuc.addListener(() => _ensureVisibleOnFocus(_focusRuc));
+    _focusTipoDocumento.addListener(
+      () => _ensureVisibleOnFocus(_focusTipoDocumento),
+    );
+    _focusNota.addListener(() => _ensureVisibleOnFocus(_focusNota));
+    _focusOrigen.addListener(() => _ensureVisibleOnFocus(_focusOrigen));
+    _focusDestino.addListener(() => _ensureVisibleOnFocus(_focusDestino));
+    _focusMotivo.addListener(() => _ensureVisibleOnFocus(_focusMotivo));
   }
 
-  void _initializeControllers() {
-    _proveedorController = TextEditingController();
-    _fechaController = TextEditingController(
-      text: DateTime.now().toLocal().toString().split(' ')[0],
-    );
-    _totalController = TextEditingController();
-    _monedaController = TextEditingController(text: 'PEN');
-    _rucController = TextEditingController();
-    _serieFacturaController = TextEditingController();
-    _numeroFacturaController = TextEditingController();
-    _tipoDocumentoController = TextEditingController();
-    _numeroDocumentoController = TextEditingController();
-    _notaController = TextEditingController();
+  // inicialización delegada al controlador
 
-    // RUC Cliente (siempre el RUC de la empresa que registra el gasto)
-    _rucClienteController = TextEditingController(
-      text: CompanyService().currentCompany?.ruc ?? '',
-    );
-
-    // Campos específicos de movilidad
-    _origenController = TextEditingController();
-    _destinoController = TextEditingController();
-    _motivoViajeController = TextEditingController();
-    _tipoTransporteController = TextEditingController(text: 'Taxi');
+  void _onControllerUpdated() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _proveedorController.dispose();
-    _fechaController.dispose();
-    _totalController.dispose();
-    _monedaController.dispose();
-    _rucController.dispose();
-    _serieFacturaController.dispose();
-    _numeroFacturaController.dispose();
-    _tipoDocumentoController.dispose();
-    _numeroDocumentoController.dispose();
-    _notaController.dispose();
-    _origenController.dispose();
-    _destinoController.dispose();
-    _motivoViajeController.dispose();
-    _tipoTransporteController.dispose();
-    _rucClienteController.dispose();
+    controller.removeListener(_onControllerUpdated);
+    controller.dispose();
+    // dispose focus nodes
+    _focusProveedor.dispose();
+    _focusRuc.dispose();
+    _focusTipoDocumento.dispose();
+    _focusNota.dispose();
+    _focusOrigen.dispose();
+    _focusDestino.dispose();
+    _focusMotivo.dispose();
     super.dispose();
   }
 
-  Future<void> _loadCategorias() async {
-    setState(() {
-      _isLoadingCategorias = true;
-      _error = null;
+  void _ensureVisibleOnFocus(FocusNode node) {
+    if (!node.hasFocus) return;
+    // Esperar un frame para que el teclado aparezca
+    Future.delayed(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      BuildContext? contextField;
+      // Si es destino o motivo, preferimos usar el GlobalKey para mayor fiabilidad
+      if (node == _focusDestino) {
+        contextField = _keyDestino.currentContext;
+      } else if (node == _focusMotivo) {
+        contextField = _keyMotivo.currentContext;
+      }
+
+      contextField ??= node.context;
+
+      if (contextField != null) {
+        Scrollable.ensureVisible(
+          contextField,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeInOut,
+          alignment: 0.28, // un poco más arriba que antes para equilibrio
+        );
+      }
     });
+  }
 
-    try {
-      final categorias = await _apiService.getRendicionCategorias(
-        politica: widget.politicaSeleccionada.value,
-      );
+  @override
+  void setState(VoidCallback fn) {
+    // Evitar llamar a setState si el State ya no está montado o está en proceso de disposal.
+    if (!mounted) return;
+    super.setState(fn);
+  }
 
-      setState(() {
-        _categoriasMovilidad = categorias;
-        _isLoadingCategorias = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoadingCategorias = false;
-      });
-    }
+  Future<void> _loadCategorias() async {
+    await controller.loadCategorias();
   }
 
   Future<void> _loadTiposGasto() async {
-    setState(() {
-      _isLoadingTiposGasto = true;
-      _error = null;
-    });
-
-    try {
-      final tiposGasto = await _apiService.getTiposGasto();
-
-      setState(() {
-        _tiposGasto = tiposGasto;
-        _isLoadingTiposGasto = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoadingTiposGasto = false;
-      });
-    }
+    await controller.loadTiposGasto();
   }
 
   Future<void> _pickFile() async {
-    final selectedOption = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Seleccionar evidencia'),
-          content: const Text('¿Qué tipo de archivo desea agregar?'),
-          actions: [
-            TextButton.icon(
-              onPressed: () => Navigator.pop(context, 'camera'),
-              icon: const Icon(Icons.camera_alt),
-              label: const Text('Tomar Foto'),
-            ),
-            TextButton.icon(
-              onPressed: () => Navigator.pop(context, 'gallery'),
-              icon: const Icon(Icons.photo_library),
-              label: const Text('Galería'),
-            ),
-            TextButton.icon(
-              onPressed: () => Navigator.pop(context, 'file'),
-              icon: const Icon(Icons.attach_file),
-              label: const Text('Archivo'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (selectedOption != null) {
-      setState(() => _isLoading = true);
-
-      try {
-        if (selectedOption == 'camera') {
-          final XFile? image = await _picker.pickImage(
-            source: ImageSource.camera,
-          );
-          if (image != null) {
-            setState(() {
-              _selectedImage = File(image.path);
-              _selectedFile = null;
-              _selectedFileType = 'image';
-              _selectedFileName = image.name;
-            });
-          }
-        } else if (selectedOption == 'gallery') {
-          final XFile? image = await _picker.pickImage(
-            source: ImageSource.gallery,
-          );
-          if (image != null) {
-            setState(() {
-              _selectedImage = File(image.path);
-              _selectedFile = null;
-              _selectedFileType = 'image';
-              _selectedFileName = image.name;
-            });
-          }
-        } else if (selectedOption == 'file') {
-          final result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-          );
-          if (result != null && result.files.single.path != null) {
-            setState(() {
-              _selectedFile = File(result.files.single.path!);
-              _selectedImage = null;
-              _selectedFileType = result.files.single.extension;
-              _selectedFileName = result.files.single.name;
-            });
-          }
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al seleccionar archivo: $e')),
-        );
-      } finally {
-        setState(() => _isLoading = false);
-      }
+    try {
+      await controller.pickFile(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al seleccionar archivo: $e')),
+      );
     }
   }
 
   Future<void> _onGuardar() async {
-    print('🚀 Iniciando guardado de gasto de movilidad...');
-
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('❌ Por favor complete todos los campos obligatorios'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
     try {
-      setState(() => _isLoading = true);
-
-      // Formatear fecha para SQL Server (solo fecha, sin hora)
-      String fechaSQL = "";
-      if (_fechaController.text.isNotEmpty) {
-        try {
-          // Intentar parsear la fecha
-          final fecha = DateTime.parse(_fechaController.text);
-          fechaSQL =
-              "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
-        } catch (e) {
-          // Si falla, usar fecha actual
-          final fecha = DateTime.now();
-          fechaSQL =
-              "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
-        }
-      } else {
-        final fecha = DateTime.now();
-        fechaSQL =
-            "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
-      }
-
-      final body = {
-        "idUser": UserService().currentUserCode,
-        "dni": UserService().currentUserDni,
-        "politica": widget.politicaSeleccionada.value.length > 80
-            ? widget.politicaSeleccionada.value.substring(0, 80)
-            : widget.politicaSeleccionada.value,
-        "categoria":
-            _selectedCategoria?.value == null ||
-                _selectedCategoria!.value.isEmpty
-            ? "MOVILIDAD"
-            : (_selectedCategoria!.value.length > 80
-                  ? _selectedCategoria!.value.substring(0, 80)
-                  : _selectedCategoria!.value),
-        "tipoGasto":
-            _selectedTipoGasto?.value == null ||
-                _selectedTipoGasto!.value.isEmpty
-            ? "GASTO DE MOVILIDAD"
-            : (_selectedTipoGasto!.value.length > 80
-                  ? _selectedTipoGasto!.value.substring(0, 80)
-                  : _selectedTipoGasto!.value),
-        "ruc": _rucController.text.isEmpty
-            ? ""
-            : (_rucController.text.length > 80
-                  ? _rucController.text.substring(0, 80)
-                  : _rucController.text),
-        "proveedor": _proveedorController.text.isEmpty
-            ? "PROVEEDOR DE EJEMPLO"
-            : (_proveedorController.text.length > 80
-                  ? _proveedorController.text.substring(0, 80)
-                  : _proveedorController.text),
-        "tipoCombrobante": _tipoDocumentoController.text.isEmpty
-            ? ""
-            : (_tipoDocumentoController.text.length > 180
-                  ? _tipoDocumentoController.text.substring(0, 180)
-                  : _tipoDocumentoController.text),
-        "serie": _serieFacturaController.text.isEmpty
-            ? ""
-            : (_serieFacturaController.text.length > 80
-                  ? _serieFacturaController.text.substring(0, 80)
-                  : _serieFacturaController.text),
-        "numero": _numeroFacturaController.text.isEmpty
-            ? ""
-            : (_numeroFacturaController.text.length > 80
-                  ? _numeroFacturaController.text.substring(0, 80)
-                  : _numeroFacturaController.text),
-        "igv": 0.0, // No tenemos campo IGV en este modal
-        "fecha": fechaSQL,
-        "total": double.tryParse(_totalController.text) ?? 0.0,
-        "moneda": _monedaController.text.isEmpty
-            ? "PEN"
-            : (_monedaController.text.length > 80
-                  ? _monedaController.text.substring(0, 80)
-                  : _monedaController.text),
-        "rucCliente": _rucClienteController.text.isNotEmpty
-            ? _rucClienteController.text
-            : (CompanyService().currentCompany?.ruc ?? ''),
-        "desEmp": CompanyService().currentCompany?.empresa ?? '',
-        "desSed": "",
-        "idCuenta": "",
-        "consumidor": "",
-        "regimen": "",
-        "destino": "BORRADOR",
-        "glosa": _notaController.text.length > 480
-            ? _notaController.text.substring(0, 480)
-            : _notaController.text,
-        "motivoViaje": _motivoViajeController.text.length > 50
-            ? _motivoViajeController.text.substring(0, 50)
-            : _motivoViajeController.text,
-        "lugarOrigen": _origenController.text.length > 50
-            ? _origenController.text.substring(0, 50)
-            : _origenController.text,
-        "lugarDestino": _destinoController.text.length > 50
-            ? _destinoController.text.substring(0, 50)
-            : _destinoController.text,
-        "tipoMovilidad": _tipoTransporteController.text.length > 50
-            ? _tipoTransporteController.text.substring(0, 50)
-            : _tipoTransporteController.text,
-        "obs": _notaController.text.length > 1000
-            ? _notaController.text.substring(0, 1000)
-            : _notaController.text,
-        "estado": "S", // Solo 1 carácter como requiere la BD
-        "fecCre": DateTime.now().toIso8601String(),
-        "useReg": UserService().currentUserCode, // Campo obligatorio
-        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
-        "fecEdit": DateTime.now().toIso8601String(),
-        "useEdit": 0,
-        "useElim": 0,
-      };
-
-      // ✅ Proceder con el guardado
-      print('✅ Procediendo a guardar...');
-      final idRend = await _apiService.saveRendicionGasto(body);
-
-      if (idRend == null) {
-        throw Exception(
-          'No se pudo guardar la factura principal o no se obtuvo el ID autogenerado',
-        );
-      }
-
-      debugPrint('🆔 ID autogenerado obtenido: $idRend');
-      debugPrint('📋 Preparando datos de evidencia con el ID generado...');
-      final facturaDataEvidencia = {
-        "idRend": idRend, // ✅ Usar el ID autogenerado del API principal
-        "evidencia": _selectedFile != null
-            ? base64Encode(_selectedFile!.readAsBytesSync())
-            : (_selectedImage != null
-                  ? base64Encode(_selectedImage!.readAsBytesSync())
-                  : ""),
-        "obs": _notaController.text.length > 1000
-            ? _notaController.text.substring(0, 1000)
-            : _notaController.text,
-        "estado": "S", // Solo 1 carácter como requiere la BD
-        "fecCre": DateTime.now().toIso8601String(),
-        "useReg": UserService().currentUserCode, // Campo obligatorio
-        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
-        "fecEdit": DateTime.now().toIso8601String(),
-        "useEdit": 0,
-        "useElim": 0,
-      };
-
-      final successEvidencia = await _apiService.saveRendicionGastoEvidencia(
-        facturaDataEvidencia,
-      );
-
-      if (successEvidencia && mounted) {
+      final id = await controller.save();
+      if (id != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Gasto de movilidad guardado exitosamente'),
@@ -432,41 +146,20 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
             duration: Duration(seconds: 2),
           ),
         );
-
-        // Cerrar el modal y navegar a la pantalla de gastos
-        Navigator.of(context).pop(); // Cerrar modal
-
-        // Navegar a HomeScreen con índice 0 (pestaña de Gastos)
+        Navigator.of(context).pop();
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false, // Remover todas las rutas anteriores
+          (route) => false,
         );
       }
     } catch (e) {
-      print('💥 Error capturado: $e');
-
-      // Cerrar diálogo de carga si está abierto
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      if (mounted) {
-        // Extraer mensaje del servidor para mostrar en alerta
-        final serverMessage = _extractServerMessage(e.toString());
-
-        // Verificar si es una factura duplicada
-        if (serverMessage.toLowerCase().contains('duplicad') ||
-            serverMessage.toLowerCase().contains('ya existe') ||
-            serverMessage.toLowerCase().contains('registrada')) {
-          _showFacturaDuplicadaDialog(serverMessage);
-        } else {
-          _showErrorDialog(serverMessage);
-        }
-      }
-    } finally {
-      print('🔄 Finalizando proceso...');
-      if (mounted) {
-        setState(() => _isLoading = false);
+      final serverMessage = controller.extractServerMessage(e.toString());
+      if (serverMessage.toLowerCase().contains('duplicad') ||
+          serverMessage.toLowerCase().contains('ya existe') ||
+          serverMessage.toLowerCase().contains('registrada')) {
+        _showFacturaDuplicadaDialog(serverMessage);
+      } else {
+        _showErrorDialog(serverMessage);
       }
     }
   }
@@ -489,19 +182,25 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
             child: Form(
               key: _formKey,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                // Añadir padding inferior dinámico para que el teclado no oculte los campos
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  16 + MediaQuery.of(context).viewInsets.bottom,
+                ),
                 child: Column(
                   children: [
                     _buildArchivoSection(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 4),
                     _buildLectorSunatSection(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 4),
                     _buildDatosGeneralesSection(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 4),
                     _buildDatosPersonalizadosSection(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 4),
                     _buildMovilidadSection(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 4),
                     _buildActions(),
                   ],
                 ),
@@ -515,7 +214,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.blue.shade700, Colors.blue.shade400],
@@ -528,7 +227,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
       child: Row(
         children: [
           const Icon(Icons.directions_car, color: Colors.white, size: 28),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -576,7 +275,8 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
             ),
             const SizedBox(height: 12),
             TextFormField(
-              controller: _proveedorController,
+              controller: controller.proveedorController,
+              focusNode: _focusProveedor,
               decoration: const InputDecoration(
                 labelText: 'Proveedor *',
                 border: OutlineInputBorder(),
@@ -594,7 +294,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
               children: [
                 Expanded(
                   child: TextFormField(
-                    controller: _fechaController,
+                    controller: controller.fechaController,
                     decoration: const InputDecoration(
                       labelText: 'Fecha *',
                       border: OutlineInputBorder(),
@@ -609,9 +309,10 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                         lastDate: DateTime.now(),
                       );
                       if (date != null) {
-                        _fechaController.text = date.toLocal().toString().split(
-                          ' ',
-                        )[0];
+                        controller.fechaController.text = date
+                            .toLocal()
+                            .toString()
+                            .split(' ')[0];
                       }
                     },
                     validator: (value) {
@@ -622,10 +323,10 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: TextFormField(
-                    controller: _totalController,
+                    controller: controller.totalController,
                     decoration: const InputDecoration(
                       labelText: 'Total *',
                       border: OutlineInputBorder(),
@@ -647,9 +348,9 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _monedaController.text.isEmpty
+              value: controller.monedaController.text.isEmpty
                   ? 'PEN'
-                  : _monedaController.text,
+                  : controller.monedaController.text,
               decoration: const InputDecoration(
                 labelText: 'Moneda *',
                 border: OutlineInputBorder(),
@@ -661,7 +362,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                 DropdownMenuItem(value: 'EUR', child: Text('EUR - Euros')),
               ],
               onChanged: (value) {
-                _monedaController.text = value ?? 'PEN';
+                controller.monedaController.text = value ?? 'PEN';
               },
             ),
           ],
@@ -689,8 +390,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
             ),
             const SizedBox(height: 16),
 
-            // Categoría
-            if (_isLoadingCategorias)
+            if (controller.isLoadingCategorias)
               const Center(
                 child: Column(
                   children: [
@@ -700,7 +400,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                   ],
                 ),
               )
-            else if (_error != null)
+            else if (controller.error != null)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -714,7 +414,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Error: $_error',
+                        'Error: ${controller.error}',
                         style: TextStyle(color: Colors.red.shade700),
                       ),
                     ),
@@ -725,7 +425,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                   ],
                 ),
               )
-            else if (_categoriasMovilidad.isEmpty)
+            else if (controller.categoriasMovilidad.isEmpty)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -753,30 +453,25 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
-                value: _selectedCategoria,
-                items: _categoriasMovilidad.map((categoria) {
+                value: controller.selectedCategoria,
+                items: controller.categoriasMovilidad.map((categoria) {
                   return DropdownMenuItem<DropdownOption>(
                     value: categoria,
                     child: Text(categoria.value),
                   );
                 }).toList(),
                 onChanged: (value) {
-                  setState(() {
-                    _selectedCategoria = value;
-                  });
+                  controller.updateSelectedCategoria(value);
                 },
                 validator: (value) {
-                  if (value == null) {
-                    return 'Categoría es obligatoria';
-                  }
+                  if (value == null) return 'Categoría es obligatoria';
                   return null;
                 },
               ),
 
             const SizedBox(height: 16),
 
-            // Tipo de Gasto
-            if (_isLoadingTiposGasto)
+            if (controller.isLoadingTiposGasto)
               const Center(
                 child: Column(
                   children: [
@@ -786,7 +481,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                   ],
                 ),
               )
-            else if (_error != null)
+            else if (controller.error != null)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -800,7 +495,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Error: $_error',
+                        'Error: ${controller.error}',
                         style: TextStyle(color: Colors.red.shade700),
                       ),
                     ),
@@ -818,31 +513,27 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.receipt),
                 ),
-                value: _selectedTipoGasto,
-                items: _tiposGasto.map((tipo) {
+                value: controller.selectedTipoGasto,
+                items: controller.tiposGasto.map((tipo) {
                   return DropdownMenuItem<DropdownOption>(
                     value: tipo,
                     child: Text(tipo.value),
                   );
                 }).toList(),
                 onChanged: (value) {
-                  setState(() {
-                    _selectedTipoGasto = value;
-                  });
+                  controller.updateSelectedTipoGasto(value);
                 },
                 validator: (value) {
-                  if (value == null) {
-                    return 'Tipo Gasto es obligatorio';
-                  }
+                  if (value == null) return 'Tipo Gasto es obligatorio';
                   return null;
                 },
               ),
 
             const SizedBox(height: 16),
 
-            // RUC Proveedor
             TextFormField(
-              controller: _rucController,
+              controller: controller.rucController,
+              focusNode: _focusRuc,
               decoration: const InputDecoration(
                 labelText: 'RUC Proveedor *',
                 border: OutlineInputBorder(),
@@ -850,19 +541,17 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
               ),
               keyboardType: TextInputType.number,
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
+                if (value == null || value.trim().isEmpty)
                   return 'RUC es obligatorio';
-                }
                 return null;
               },
             ),
 
             const SizedBox(height: 16),
 
-            // RUC Cliente
             TextFormField(
-              controller: _rucClienteController,
-              enabled: false, // Campo no editable
+              controller: controller.rucClienteController,
+              enabled: false,
               decoration: InputDecoration(
                 labelText: 'RUC Cliente',
                 border: const OutlineInputBorder(),
@@ -876,21 +565,19 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
 
             const SizedBox(height: 16),
 
-            // Serie y Número de Factura
             Row(
               children: [
                 Expanded(
                   child: TextFormField(
-                    controller: _serieFacturaController,
+                    controller: controller.serieFacturaController,
                     decoration: const InputDecoration(
                       labelText: 'Serie *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.receipt_long),
                     ),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
+                      if (value == null || value.trim().isEmpty)
                         return 'Serie es obligatorio';
-                      }
                       return null;
                     },
                   ),
@@ -898,7 +585,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextFormField(
-                    controller: _numeroFacturaController,
+                    controller: controller.numeroFacturaController,
                     decoration: const InputDecoration(
                       labelText: 'Número *',
                       border: OutlineInputBorder(),
@@ -906,9 +593,8 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                     ),
                     keyboardType: TextInputType.number,
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
+                      if (value == null || value.trim().isEmpty)
                         return 'Número es obligatorio';
-                      }
                       return null;
                     },
                   ),
@@ -918,12 +604,12 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
 
             const SizedBox(height: 16),
 
-            // Tipo de Documento y Número de Documento
             Row(
               children: [
                 Expanded(
                   child: TextFormField(
-                    controller: _tipoDocumentoController,
+                    controller: controller.tipoDocumentoController,
+                    focusNode: _focusTipoDocumento,
                     decoration: const InputDecoration(
                       labelText: 'Tipo Documento *',
                       border: OutlineInputBorder(),
@@ -932,9 +618,8 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                     ),
                     readOnly: true,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.isEmpty)
                         return 'Tipo Documento es obligatorio';
-                      }
                       return null;
                     },
                   ),
@@ -944,9 +629,9 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
 
             const SizedBox(height: 16),
 
-            // Nota
             TextFormField(
-              controller: _notaController,
+              controller: controller.notaController,
+              focusNode: _focusNota,
               decoration: const InputDecoration(
                 labelText: 'Nota',
                 hintText: 'Observaciones o comentarios',
@@ -964,7 +649,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
   Widget _buildMovilidadSection() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -980,7 +665,8 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
             ),
             const SizedBox(height: 12),
             TextFormField(
-              controller: _origenController,
+              controller: controller.origenController,
+              focusNode: _focusOrigen,
               decoration: const InputDecoration(
                 labelText: 'Origen *',
                 border: OutlineInputBorder(),
@@ -994,40 +680,61 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
               },
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _destinoController,
-              decoration: const InputDecoration(
-                labelText: 'Destino *',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.location_on),
+            Container(
+              key: _keyDestino,
+              child: TextFormField(
+                controller: controller.destinoController,
+                focusNode: _focusDestino,
+                onTap: () {
+                  // Forzar ensureVisible con un pequeño delay mayor para dispositivos
+                  Future.delayed(
+                    const Duration(milliseconds: 220),
+                    () => _ensureVisibleOnFocus(_focusDestino),
+                  );
+                },
+                decoration: const InputDecoration(
+                  labelText: 'Destino *',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_on),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Destino es obligatorio';
+                  }
+                  return null;
+                },
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Destino es obligatorio';
-                }
-                return null;
-              },
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _motivoViajeController,
-              decoration: const InputDecoration(
-                labelText: 'Motivo del Viaje *',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.description),
+            Container(
+              key: _keyMotivo,
+              child: TextFormField(
+                controller: controller.motivoViajeController,
+                focusNode: _focusMotivo,
+                onTap: () {
+                  Future.delayed(
+                    const Duration(milliseconds: 240),
+                    () => _ensureVisibleOnFocus(_focusMotivo),
+                  );
+                },
+                decoration: const InputDecoration(
+                  labelText: 'Motivo del Viaje *',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.description),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Motivo del Viaje es obligatorio';
+                  }
+                  return null;
+                },
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Motivo del Viaje es obligatorio';
-                }
-                return null;
-              },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _tipoTransporteController.text.isEmpty
+              value: controller.tipoTransporteController.text.isEmpty
                   ? 'Taxi'
-                  : _tipoTransporteController.text,
+                  : controller.tipoTransporteController.text,
               decoration: const InputDecoration(
                 labelText: 'Tipo de Transporte',
                 border: OutlineInputBorder(),
@@ -1042,7 +749,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                 DropdownMenuItem(value: 'Otro', child: Text('Otro')),
               ],
               onChanged: (value) {
-                _tipoTransporteController.text = value ?? 'Taxi';
+                controller.tipoTransporteController.text = value ?? 'Taxi';
               },
             ),
           ],
@@ -1054,14 +761,14 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
   Widget _buildArchivoSection() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 const Icon(Icons.attach_file, color: Colors.blue),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 const Expanded(
                   child: Text(
                     'Adjuntar Evidencia',
@@ -1071,13 +778,15 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                 ElevatedButton.icon(
                   onPressed: _pickFile,
                   icon: Icon(
-                    (_selectedImage == null && _selectedFile == null)
+                    (controller.selectedImage == null &&
+                            controller.selectedFile == null)
                         ? Icons.add
                         : Icons.edit,
                     size: 16,
                   ),
                   label: Text(
-                    (_selectedImage == null && _selectedFile == null)
+                    (controller.selectedImage == null &&
+                            controller.selectedFile == null)
                         ? 'Seleccionar'
                         : 'Cambiar',
                   ),
@@ -1102,12 +811,14 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                 borderRadius: BorderRadius.circular(8),
                 color: Colors.grey.shade50,
               ),
-              child: (_selectedImage != null || _selectedFile != null)
+              child:
+                  (controller.selectedImage != null ||
+                      controller.selectedFile != null)
                   ? Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          _selectedFileType == 'image'
+                          controller.selectedFileType == 'image'
                               ? Icons.image
                               : Icons.picture_as_pdf,
                           size: 48,
@@ -1115,7 +826,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          _selectedFileName ?? 'Archivo seleccionado',
+                          controller.selectedFileName ?? 'Archivo seleccionado',
                           style: const TextStyle(fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
@@ -1168,7 +879,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
   Widget _buildLectorSunatSection() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1178,17 +889,21 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Lector de Código SUNAT',
+                    'Lector de Código QR',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: _isScanning ? null : _scanQRCode,
+                  onPressed: controller.isScanning ? null : _scanQRCode,
                   icon: Icon(
-                    _isScanning ? Icons.hourglass_empty : Icons.qr_code_scanner,
+                    controller.isScanning
+                        ? Icons.hourglass_empty
+                        : Icons.qr_code_scanner,
                     size: 16,
                   ),
-                  label: Text(_isScanning ? 'Escaneando...' : 'Escanear QR'),
+                  label: Text(
+                    controller.isScanning ? 'Escaneando...' : 'Escanear QR',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
@@ -1201,22 +916,22 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _hasScannedData
+                color: controller.hasScannedData
                     ? Colors.green.shade50
                     : Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _hasScannedData
+                  color: controller.hasScannedData
                       ? Colors.green.shade200
                       : Colors.grey.shade300,
                 ),
               ),
-              child: _hasScannedData
+              child: controller.hasScannedData
                   ? Column(
                       children: [
                         Row(
@@ -1226,7 +941,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                               color: Colors.green.shade600,
                               size: 20,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 4),
                             const Text(
                               'Código QR procesado correctamente',
                               style: TextStyle(
@@ -1236,7 +951,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         Text(
                           'Los datos han sido extraídos y aplicados a los campos correspondientes',
                           style: TextStyle(
@@ -1244,7 +959,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                             color: Colors.green.shade700,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         TextButton.icon(
                           onPressed: _clearScannedData,
                           icon: const Icon(Icons.clear, size: 16),
@@ -1263,10 +978,10 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                           color: Colors.grey.shade600,
                           size: 20,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            'Escanee el código QR de la factura para llenar automáticamente los campos',
+                            'Escanee el código QR de la factura ',
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 12,
@@ -1284,9 +999,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
 
   /// Método para escanear código QR
   Future<void> _scanQRCode() async {
-    setState(() {
-      _isScanning = true;
-    });
+    controller.setScanning(true);
 
     try {
       // Navegar a la pantalla de escáner
@@ -1296,7 +1009,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
       );
 
       if (qrData != null && qrData.isNotEmpty) {
-        _processQRData(qrData);
+        controller.processQRData(qrData);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1306,112 +1019,16 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
         ),
       );
     } finally {
-      setState(() {
-        _isScanning = false;
-      });
+      controller.setScanning(false);
     }
   }
 
   /// Procesar los datos del QR y llenar los campos
-  void _processQRData(String qrData) {
-    try {
-      setState(() {
-        _hasScannedData = true;
-      });
-
-      // Parsear el QR de SUNAT (formato típico separado por |)
-      final parts = qrData.split('|');
-
-      if (parts.length >= 6) {
-        // Formato típico de QR SUNAT:
-        // RUC|Tipo|Serie|Número|IGV|Total|Fecha|TipoDoc|DocReceptor
-
-        // RUC del emisor
-        if (parts[0].isNotEmpty) {
-          _rucController.text = parts[0];
-        }
-
-        // Tipo de comprobante
-        if (parts[1].isNotEmpty) {
-          String tipoDoc = parts[1];
-          switch (tipoDoc) {
-            case '01':
-              _tipoDocumentoController.text = 'Factura';
-              break;
-            case '03':
-              _tipoDocumentoController.text = 'Boleta';
-              break;
-            case '08':
-              _tipoDocumentoController.text = 'Nota de Débito';
-              break;
-            default:
-              _tipoDocumentoController.text = 'Otro';
-          }
-        }
-
-        // Serie
-        if (parts[2].isNotEmpty) {
-          _serieFacturaController.text = parts[2];
-        }
-
-        // Número de factura
-        if (parts[3].isNotEmpty) {
-          _numeroFacturaController.text = parts[3];
-        }
-
-        // Número de documento (combinado para compatibilidad)
-        if (parts[2].isNotEmpty && parts[3].isNotEmpty) {
-          _numeroDocumentoController.text = '${parts[2]}-${parts[3]}';
-        }
-
-        // Total
-        if (parts[5].isNotEmpty) {
-          _totalController.text = parts[5];
-        }
-
-        // Fecha (si está disponible)
-        if (parts.length > 6 && parts[6].isNotEmpty) {
-          final fechaNormalizada = _normalizarFecha(parts[6]);
-          _fechaController.text = fechaNormalizada;
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Datos del QR aplicados correctamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        throw Exception('Formato de QR no válido');
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al procesar QR: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      setState(() {
-        _hasScannedData = false;
-      });
-    }
-  }
+  // El procesamiento del QR y normalización ahora están en el controlador
 
   /// Limpiar los datos escaneados
   void _clearScannedData() {
-    setState(() {
-      _hasScannedData = false;
-
-      // Limpiar los campos que se llenaron automáticamente
-      _rucController.clear();
-      _serieFacturaController.clear();
-      _numeroFacturaController.clear();
-      _tipoDocumentoController.clear();
-      _numeroDocumentoController.clear();
-      _totalController.clear();
-      _fechaController.text = DateTime.now().toLocal().toString().split(' ')[0];
-    });
-
+    controller.clearScannedData();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Datos del QR limpiados'),
@@ -1422,7 +1039,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
 
   Widget _buildActions() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(8),
@@ -1430,10 +1047,11 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
       ),
       child: Column(
         children: [
-          if (_selectedImage == null && _selectedFile == null)
+          if (controller.selectedImage == null &&
+              controller.selectedFile == null)
             Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(4),
+              margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
                 color: Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(8),
@@ -1445,7 +1063,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      'Por favor complete todos los campos obligatorios (*) e incluya un archivo de evidencia',
+                      'Por favor complete todos los campos ',
                       style: TextStyle(
                         color: Colors.orange,
                         fontWeight: FontWeight.w500,
@@ -1461,7 +1079,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
                 child: OutlinedButton(
                   onPressed: widget.onCancel,
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     side: BorderSide(color: Colors.grey.shade400),
                   ),
                   child: const Text('Cancelar', style: TextStyle(fontSize: 16)),
@@ -1470,13 +1088,13 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _onGuardar,
+                  onPressed: controller.isLoading ? null : _onGuardar,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade600,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                  child: _isLoading
+                  child: controller.isLoading
                       ? const SizedBox(
                           height: 20,
                           width: 20,
@@ -1498,102 +1116,13 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
               ),
             ],
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  /// Normaliza diferentes formatos de fecha al formato ISO (YYYY-MM-DD)
-  String _normalizarFecha(String fechaOriginal) {
-    try {
-      // Limpiar la fecha de espacios y caracteres especiales
-      String fechaLimpia = fechaOriginal.trim();
-
-      // Lista de formatos de fecha comunes que pueden venir en QR de facturas
-      final formatosPosibles = [
-        'yyyy-MM-dd', // 2024-10-03 (ISO estándar)
-        'dd/MM/yyyy', // 03/10/2024 (formato peruano común)
-        'dd-MM-yyyy', // 03-10-2024
-        'yyyy/MM/dd', // 2024/10/03
-        'MM/dd/yyyy', // 10/03/2024 (formato americano)
-        'dd.MM.yyyy', // 03.10.2024 (formato europeo)
-        'yyyyMMdd', // 20241003 (formato sin separadores)
-        'dd/MM/yy', // 03/10/24 (año de 2 dígitos)
-        'yyyy-M-d', // 2024-10-3 (sin ceros a la izquierda)
-        'dd/M/yyyy', // 03/10/2024
-        'd/MM/yyyy', // 3/10/2024
-        'd/M/yyyy', // 3/10/2024
-      ];
-
-      DateTime? fechaParseada;
-
-      // Intentar parsear con cada formato
-      for (String formato in formatosPosibles) {
-        try {
-          fechaParseada = DateFormat(formato).parseStrict(fechaLimpia);
-          debugPrint('✅ Fecha parseada exitosamente con formato: $formato');
-          debugPrint(
-            '📅 Fecha original: $fechaOriginal → Fecha parseada: $fechaParseada',
-          );
-          break;
-        } catch (e) {
-          // Continuar con el siguiente formato
-          continue;
-        }
-      }
-
-      // Si no se pudo parsear con ningún formato, intentar con parseo flexible
-      if (fechaParseada == null) {
-        try {
-          // Intentar detectar automáticamente el formato
-          fechaParseada = DateTime.parse(fechaLimpia);
-          debugPrint('✅ Fecha parseada con DateTime.parse automático');
-        } catch (e) {
-          // Intentar con algunos patrones especiales
-          try {
-            // Remover caracteres no numéricos y intentar formato YYYYMMDD
-            String soloNumeros = fechaLimpia.replaceAll(RegExp(r'[^0-9]'), '');
-            if (soloNumeros.length == 8) {
-              String year = soloNumeros.substring(0, 4);
-              String month = soloNumeros.substring(4, 6);
-              String day = soloNumeros.substring(6, 8);
-              fechaParseada = DateTime.parse('$year-$month-$day');
-              debugPrint('✅ Fecha parseada desde números: $soloNumeros');
-            }
-          } catch (e2) {
-            debugPrint('❌ No se pudo parsear la fecha: $fechaOriginal');
-          }
-        }
-      }
-
-      if (fechaParseada != null) {
-        // Validar que la fecha sea razonable (no muy antigua ni muy futura)
-        final ahora = DateTime.now();
-        final hace5Anos = ahora.subtract(const Duration(days: 365 * 5));
-        final en1Ano = ahora.add(const Duration(days: 365));
-
-        if (fechaParseada.isBefore(hace5Anos) ||
-            fechaParseada.isAfter(en1Ano)) {
-          debugPrint('⚠️ Fecha fuera del rango razonable: $fechaParseada');
-          // Si la fecha está fuera del rango, usar fecha actual
-          return DateFormat('yyyy-MM-dd').format(ahora);
-        }
-
-        // Convertir al formato ISO estándar
-        String fechaISO = DateFormat('yyyy-MM-dd').format(fechaParseada);
-        debugPrint('🎯 Fecha normalizada: $fechaOriginal → $fechaISO');
-        return fechaISO;
-      }
-
-      // Si todo falla, usar la fecha actual
-      debugPrint('🔄 Usando fecha actual como fallback para: $fechaOriginal');
-      return DateFormat('yyyy-MM-dd').format(DateTime.now());
-    } catch (e) {
-      debugPrint('💥 Error en _normalizarFecha: $e');
-      // En caso de cualquier error, usar fecha actual
-      return DateFormat('yyyy-MM-dd').format(DateTime.now());
-    }
-  }
+  // Normalización de fecha ahora en el controlador si es necesario
 
   /// Muestra un diálogo específico para facturas duplicadas
   void _showFacturaDuplicadaDialog(String message) {
@@ -1608,7 +1137,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.orange.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -1637,7 +1166,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.orange.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(8),
@@ -1663,7 +1192,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
               const SizedBox(height: 16),
               if (message.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.grey.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
@@ -1716,7 +1245,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.red.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -1741,7 +1270,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
             ],
           ),
           content: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.red.withOpacity(0.05),
               borderRadius: BorderRadius.circular(8),
@@ -1776,27 +1305,7 @@ class _NuevoGastoMovilidadState extends State<NuevoGastoMovilidad> {
     );
   }
 
-  /// Extraer mensaje del error del servidor
-  String _extractServerMessage(String errorString) {
-    try {
-      // Buscar si el error contiene JSON con mensaje
-      final regex = RegExp(r'\{.*"message".*?:.*?"([^"]+)".*\}');
-      final match = regex.firstMatch(errorString);
-
-      if (match != null && match.group(1) != null) {
-        return match.group(1)!;
-      }
-
-      // Si no encuentra JSON, usar el mensaje completo pero limitado
-      if (errorString.length > 200) {
-        return errorString.substring(0, 200) + '...';
-      }
-
-      return errorString;
-    } catch (e) {
-      return 'Error al procesar la respuesta del servidor';
-    }
-  }
+  // Extracción de mensajes del servidor delegada al controlador
 }
 
 /// Pantalla del escáner QR para códigos SUNAT
@@ -1822,10 +1331,8 @@ class _QRScannerScreenState extends State<_QRScannerScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on),
-            onPressed: () => cameraController.toggleTorch(),
-          ),
+          // Botón de linterna con estado visual
+          _TorchButton(controller: cameraController),
         ],
       ),
       body: Stack(
@@ -1833,11 +1340,13 @@ class _QRScannerScreenState extends State<_QRScannerScreen> {
           // Cámara escáner
           MobileScanner(controller: cameraController, onDetect: _onQRDetected),
 
-          // Overlay con marco de escaneo
-          const QrScannerOverlay(
-            borderColor: Colors.blue,
-            borderWidth: 10,
-            cutOutSize: 250,
+          // Overlay con marco de escaneo animado
+          AnimatedQrOverlay(
+            borderColor: Colors.blueAccent,
+            borderWidth: 6,
+            cutOutSize: 280,
+            lineColor: Colors.cyanAccent,
+            overlayColor: Colors.black54,
           ),
 
           // Instrucciones
@@ -2013,4 +1522,212 @@ class QrScannerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+/// Overlay animado con línea de escaneo
+class AnimatedQrOverlay extends StatefulWidget {
+  final double cutOutSize;
+  final Color borderColor;
+  final double borderWidth;
+  final Color overlayColor;
+  final Color lineColor;
+
+  const AnimatedQrOverlay({
+    Key? key,
+    this.cutOutSize = 250,
+    this.borderColor = Colors.blue,
+    this.borderWidth = 3.0,
+    this.overlayColor = const Color.fromRGBO(0, 0, 0, 150),
+    this.lineColor = Colors.cyan,
+  }) : super(key: key);
+
+  @override
+  _AnimatedQrOverlayState createState() => _AnimatedQrOverlayState();
+}
+
+class _AnimatedQrOverlayState extends State<AnimatedQrOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: AnimatedQrPainter(
+            progress: _controller.value,
+            cutOutSize: widget.cutOutSize,
+            borderColor: widget.borderColor,
+            borderWidth: widget.borderWidth,
+            overlayColor: widget.overlayColor,
+            lineColor: widget.lineColor,
+          ),
+          child: Container(),
+        );
+      },
+    );
+  }
+}
+
+class AnimatedQrPainter extends CustomPainter {
+  final double progress;
+  final double cutOutSize;
+  final Color borderColor;
+  final double borderWidth;
+  final Color overlayColor;
+  final Color lineColor;
+
+  AnimatedQrPainter({
+    required this.progress,
+    required this.cutOutSize,
+    required this.borderColor,
+    required this.borderWidth,
+    required this.overlayColor,
+    required this.lineColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final cutOutRect = Rect.fromCenter(
+      center: rect.center,
+      width: cutOutSize,
+      height: cutOutSize,
+    );
+
+    // Overlay
+    final backgroundPath = Path()
+      ..addRect(rect)
+      ..addRect(cutOutRect)
+      ..fillType = PathFillType.evenOdd;
+
+    final backgroundPaint = Paint()
+      ..color = overlayColor
+      ..style = PaintingStyle.fill;
+
+    canvas.drawPath(backgroundPath, backgroundPaint);
+
+    // Border corners
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth
+      ..strokeCap = StrokeCap.round;
+
+    final cornerLength = 34.0;
+    final path = Path();
+
+    // Top-left
+    path.moveTo(cutOutRect.left, cutOutRect.top + cornerLength);
+    path.lineTo(cutOutRect.left, cutOutRect.top + 6);
+    path.lineTo(cutOutRect.left + cornerLength, cutOutRect.top + 6);
+
+    // Top-right
+    path.moveTo(cutOutRect.right - cornerLength, cutOutRect.top + 6);
+    path.lineTo(cutOutRect.right - 6, cutOutRect.top + 6);
+    path.lineTo(cutOutRect.right - 6, cutOutRect.top + cornerLength);
+
+    // Bottom-right
+    path.moveTo(cutOutRect.right - 6, cutOutRect.bottom - cornerLength);
+    path.lineTo(cutOutRect.right - 6, cutOutRect.bottom - 6);
+    path.lineTo(cutOutRect.right - cornerLength, cutOutRect.bottom - 6);
+
+    // Bottom-left
+    path.moveTo(cutOutRect.left + cornerLength, cutOutRect.bottom - 6);
+    path.lineTo(cutOutRect.left + 6, cutOutRect.bottom - 6);
+    path.lineTo(cutOutRect.left + 6, cutOutRect.bottom - cornerLength);
+
+    canvas.drawPath(path, borderPaint);
+
+    // Animated scanning line
+    final linePaint = Paint()
+      ..shader =
+          LinearGradient(
+            colors: [
+              lineColor.withOpacity(0.0),
+              lineColor,
+              lineColor.withOpacity(0.0),
+            ],
+          ).createShader(
+            Rect.fromLTWH(
+              cutOutRect.left,
+              0,
+              cutOutRect.width,
+              cutOutRect.height,
+            ),
+          )
+      ..style = PaintingStyle.fill
+      ..strokeWidth = 2.0;
+
+    final y = cutOutRect.top + (cutOutRect.height * progress);
+    final lineRect = Rect.fromLTWH(
+      cutOutRect.left + 4,
+      y - 1.5,
+      cutOutRect.width - 8,
+      3,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(lineRect, const Radius.circular(2)),
+      linePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant AnimatedQrPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.cutOutSize != cutOutSize;
+  }
+}
+
+/// Botón de linterna con estado
+class _TorchButton extends StatefulWidget {
+  final MobileScannerController controller;
+
+  const _TorchButton({Key? key, required this.controller}) : super(key: key);
+
+  @override
+  State<_TorchButton> createState() => _TorchButtonState();
+}
+
+class _TorchButtonState extends State<_TorchButton> {
+  bool _torchOn = false;
+
+  Future<void> _toggle() async {
+    try {
+      await widget.controller.toggleTorch();
+      setState(() {
+        _torchOn = !_torchOn;
+      });
+    } catch (_) {
+      // ignore errors toggling torch
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(
+        _torchOn ? Icons.flash_on : Icons.flash_off,
+        color: Colors.white,
+      ),
+      onPressed: _toggle,
+      tooltip: _torchOn ? 'Apagar linterna' : 'Encender linterna',
+    );
+  }
 }

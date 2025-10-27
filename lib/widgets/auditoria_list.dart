@@ -1,10 +1,10 @@
-import 'package:flu2/models/auditioria_model.dart';
+import 'package:flu2/models/reporte_auditioria_model.dart';
 import 'package:flutter/material.dart';
 
 class AuditoriaList extends StatelessWidget {
-  final List<AuditoriaModel> auditorias;
+  final List<ReporteAuditoria> auditorias;
   final Future<void> Function() onRefresh;
-  final void Function(AuditoriaModel)? onTap;
+  final void Function(ReporteAuditoria)? onTap;
 
   const AuditoriaList({
     super.key,

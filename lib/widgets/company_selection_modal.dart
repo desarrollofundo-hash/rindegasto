@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../screens/home_screen.dart';
 import '../services/api_service.dart';
 import '../services/company_service.dart';
@@ -80,13 +81,32 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
       // 🏢 GUARDAR LA EMPRESA SELECCIONADA EN EL SERVICIO
       CompanyService().setCurrentCompany(selectedUserCompany);
 
-      Navigator.of(context).pop(); // Cerrar el modal
+      // Quitar foco de cualquier TextField antes de cerrar modales
+      FocusScope.of(context).unfocus();
 
+      // Cerrar el modal de selección de empresa
+      Navigator.of(context).pop();
+
+      // Si el modal fue abierto desde el flujo de login -> navegar a Home
       if (widget.shouldNavigateToHome) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
+      } else {
+        // Si fue abierto desde el perfil (shouldNavigateToHome == false),
+        // cerramos también el modal del perfil (bottom sheet) para volver
+        // a la pantalla principal y permitir que HomeScreen escuche el
+        // cambio de empresa y se refresque.
+        // Hacemos un pop adicional si es posible.
+        if (Navigator.of(context).canPop()) {
+          try {
+            FocusScope.of(context).unfocus();
+            Navigator.of(context).pop();
+          } catch (_) {
+            // Ignorar si no se puede hacer pop adicional
+          }
+        }
       }
 
       // Mostrar mensaje de confirmación con más detalles
@@ -114,6 +134,12 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
           duration: const Duration(seconds: 2),
         ),
       );
+
+      // Asegurar que el foco y el teclado se oculten una vez que la navegación termine
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        SystemChannels.textInput.invokeMethod('TextInput.hide');
+      });
     }
   }
 
@@ -150,6 +176,7 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+<<<<<<< HEAD
             // Header con icono animado
             Container(
               padding: const EdgeInsets.all(20),
@@ -179,6 +206,11 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
             // Título principal
             Text(
               '¡Bienvenido ${widget.userName}! 👋',
+=======
+            // Icono y título
+            Text(
+              '¡Bienvenido ${widget.userName} 👋!',
+>>>>>>> 7c73e73c1453c44b7c3553a90b48f0a3b70b58f9
               style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -199,7 +231,11 @@ class _CompanySelectionModalState extends State<CompanySelectionModal> {
               ),
               textAlign: TextAlign.center,
             ),
+<<<<<<< HEAD
             const SizedBox(height: 28),
+=======
+            const SizedBox(height: 14),
+>>>>>>> 7c73e73c1453c44b7c3553a90b48f0a3b70b58f9
 
             // Contenido dinámico
             _buildContent(),

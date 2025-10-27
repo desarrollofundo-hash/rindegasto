@@ -11,12 +11,14 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        // Actualizado a Java 11 para evitar advertencias sobre Java 8 obsoleto
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        // Coincide con la versión de Java del proyecto
+        jvmTarget = "11"
     }
 
     // Configuración para reducir tamaño del APK

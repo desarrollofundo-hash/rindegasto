@@ -10,7 +10,7 @@ class ProfileModal extends StatefulWidget {
 }
 
 class _ProfileModalState extends State<ProfileModal>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late ProfileModalController _controller;
 
   @override
@@ -108,13 +108,11 @@ class _ProfileModalState extends State<ProfileModal>
                                 ),
                               ),
 
-                              const SizedBox(height: 32),
-
-                              // Avatar con animación de escala
+                             /*  // Avatar con animación de escala
                               ProfileModalWidgets.buildAnimatedAvatar(
                                 _controller,
                                 _onAvatarTap,
-                              ),
+                              ), */
 
                               const SizedBox(height: 32),
 

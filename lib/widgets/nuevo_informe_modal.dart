@@ -45,6 +45,8 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
   }
 
   Future<void> _loadPoliticas() async {
+    // Asegurar que el widget esté montado antes de llamar a setState
+    if (!mounted) return;
     setState(() {
       _isLoadingPoliticas = true;
       _errorPoliticas = null;
@@ -52,11 +54,13 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
 
     try {
       final politicas = await _apiService.getRendicionPoliticas();
+      if (!mounted) return;
       setState(() {
         _politicas = politicas;
         _isLoadingPoliticas = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorPoliticas = e.toString();
         _isLoadingPoliticas = false;
@@ -68,14 +72,13 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedPolitica == null) return;
 
-    setState(() {
-      _isCreatingInforme = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isCreatingInforme = true;
+      });
+    }
 
     try {
-      // Cerrar el modal actual
-      Navigator.of(context).pop();
-
       // Navegar a la pantalla de flujo de informe
       final resultado = await Navigator.of(context).push(
         MaterialPageRoute(
@@ -111,13 +114,16 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
         );
 
         widget.onInformeCreated(nuevoInforme);
+        // Cerrar el modal una vez que el flujo se completó correctamente
+        if (mounted) Navigator.of(context).pop();
       }
     } catch (e) {
-      setState(() {
-        _isCreatingInforme = false;
-      });
-
+      // Sólo actualizar estado y mostrar errores si el State sigue montado
       if (mounted) {
+        setState(() {
+          _isCreatingInforme = false;
+        });
+
         _mostrarSnackbarError(e.toString());
       }
     }
@@ -145,9 +151,9 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
         children: [
           // Handle del modal
           Container(
-            margin: const EdgeInsets.only(top: 12),
+            /* margin: const EdgeInsets.only(top: 2),
             width: 40,
-            height: 4,
+            height: 4, */
             decoration: BoxDecoration(
               color: Colors.grey[300],
               borderRadius: BorderRadius.circular(2),
@@ -156,7 +162,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
 
           // Header
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Colors.indigo.shade700, Colors.indigo.shade400],
@@ -169,7 +175,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
             child: Row(
               children: [
                 const Icon(Icons.description, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,7 +189,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
                         ),
                       ),
                       Text(
-                        'Crea un nuevo informe con título y política',
+                        'Crea un nuevo informe ',
                         style: TextStyle(fontSize: 12, color: Colors.white70),
                       ),
                     ],
@@ -200,12 +206,13 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
           // Contenido
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               child: _buildContent(),
             ),
           ),
 
           // Botones de acción
+<<<<<<< HEAD
           Padding(
             padding: const EdgeInsets.only(
               left: 55,
@@ -213,6 +220,11 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
               top: 10,
               bottom: 55,
             ),
+=======
+          Container(
+            padding: const EdgeInsets.all(20),
+
+>>>>>>> 7c73e73c1453c44b7c3553a90b48f0a3b70b58f9
             child: Row(
               children: [
                 Expanded(
@@ -260,6 +272,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
               ],
             ),
           ),
+          const SizedBox(height: 35),
         ],
       ),
     );
@@ -281,7 +294,10 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
                 color: Colors.black87,
               ),
             ),
+<<<<<<< HEAD
             const SizedBox(height: 10),
+=======
+>>>>>>> 7c73e73c1453c44b7c3553a90b48f0a3b70b58f9
 
             TextFormField(
               controller: _tituloController,
@@ -319,6 +335,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
               maxLength: 100,
               textCapitalization: TextCapitalization.words,
               onChanged: (value) {
+                if (!mounted) return;
                 setState(() {}); // Para actualizar el estado del botón
               },
               validator: (value) {
@@ -332,14 +349,18 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
               },
             ),
 
+<<<<<<< HEAD
             const SizedBox(height: 10),
+=======
+            const SizedBox(height: 3),
+>>>>>>> 7c73e73c1453c44b7c3553a90b48f0a3b70b58f9
 
             // Campo de nota
             TextFormField(
               controller: _notaController,
               decoration: InputDecoration(
                 labelText: 'Nota (opcional)',
-                hintText: 'Ej: Gastos del viaje de trabajo a Lima',
+                hintText: 'Ej: Gastos del viaje de trabajo a ...',
                 prefixIcon: const Icon(Icons.note_add, color: Colors.indigo),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -378,10 +399,15 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
                 color: Colors.black87,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             _buildPoliticasDropdown(),
 
+<<<<<<< HEAD
+=======
+            // Información adicional
+
+>>>>>>> 7c73e73c1453c44b7c3553a90b48f0a3b70b58f9
             // Espaciador para el scrolling
             const SizedBox(height: 20),
           ],
@@ -394,6 +420,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
     if (_isLoadingPoliticas) {
       return Container(
         height: 64,
+        /* padding: const EdgeInsets.symmetric(horizontal: 16), */
         decoration: BoxDecoration(
           border: Border.all(color: Colors.grey.shade300),
           borderRadius: BorderRadius.circular(12),
@@ -474,7 +501,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
       value: _selectedPolitica,
       decoration: InputDecoration(
         labelText: 'Política *',
-        prefixIcon: const Icon(Icons.policy, color: Colors.indigo),
+
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -533,6 +560,7 @@ class _NuevoInformeModalState extends State<NuevoInformeModal> {
         );
       }).toList(),
       onChanged: (value) {
+        if (!mounted) return;
         setState(() {
           _selectedPolitica = value;
         });

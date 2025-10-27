@@ -183,4 +183,6 @@ class ReporteInforme {
         return estadoActual ?? 'Sin Estado';
     }
   }
+
+  get idInfDet => null;
 }

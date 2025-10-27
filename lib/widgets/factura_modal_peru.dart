@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:path_provider/path_provider.dart';
 import '../models/factura_data.dart';
 import '../models/categoria_model.dart';
 import '../models/dropdown_option.dart';
@@ -35,6 +33,7 @@ class FacturaModalPeru extends StatefulWidget {
 }
 
 class _FacturaModalPeruState extends State<FacturaModalPeru> {
+  
   // Controladores para cada campo
   late TextEditingController _politicaController;
   late TextEditingController _categoriaController;
@@ -49,6 +48,13 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   late TextEditingController _monedaController;
   late TextEditingController _rucClienteController;
   late TextEditingController _notaController;
+  
+  // Campos específicos para movilidad
+  late TextEditingController _origenController;
+  late TextEditingController _destinoController;
+  late TextEditingController _motivoViajeController;
+  late TextEditingController _tipoTransporteController;
+
 
   File? _selectedImage;
   File? _selectedFile;
@@ -61,6 +67,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
   bool _isLoadingTiposGasto = false;
   List<CategoriaModel> _categoriasGeneral = [];
   List<DropdownOption> _tiposGasto = [];
+  List<CategoriaModel> _categoriasMovilidad = [];
   String? _errorCategorias;
   String? _errorTiposGasto;
 
@@ -112,7 +119,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     final empresaSeleccionada = CompanyService().currentUserCompany;
 
     if (rucClienteEscaneado.isEmpty) {
-      return '';
+      return '❌ RUC cliente no coincide con $empresaSeleccionada';
     }
 
     if (rucEmpresaSeleccionada.isEmpty) {
@@ -137,6 +144,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         _totalController.text.trim().isNotEmpty &&
         _categoriaController.text.trim().isNotEmpty &&
         _tipoGastoController.text.trim().isNotEmpty &&
+        _rucClienteController.text.trim().isNotEmpty &&
         (_selectedImage != null ||
             _selectedFile !=
                 null) && // ✅ Actualizado para aceptar archivos o imágenes
@@ -440,7 +448,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -554,35 +564,34 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
     final rucClienteEscaneado = _rucClienteController.text.trim();
     final rucEmpresaSeleccionada = CompanyService().companyRuc;
 
-    if (rucClienteEscaneado.isNotEmpty && rucEmpresaSeleccionada.isNotEmpty) {
-      if (rucClienteEscaneado != rucEmpresaSeleccionada) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '❌ RUC del cliente no coincide con la empresa seleccionada',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text('RUC cliente escaneado: $rucClienteEscaneado'),
-                Text('RUC empresa: $rucEmpresaSeleccionada'),
-                Text('Empresa: ${CompanyService().currentUserCompany}'),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 6),
-            action: SnackBarAction(
-              label: 'OK',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
+    if (rucClienteEscaneado != rucEmpresaSeleccionada ||
+        rucClienteEscaneado.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '❌ RUC del cliente no coincide con la empresa seleccionada',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text('RUC cliente escaneado: $rucClienteEscaneado'),
+              Text('RUC empresa: $rucEmpresaSeleccionada'),
+              Text('Empresa: ${CompanyService().currentUserCompany}'),
+            ],
           ),
-        );
-        return;
-      }
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
+        ),
+      );
+      return;
     }
 
     try {
@@ -675,9 +684,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         "lugarOrigen": "",
         "lugarDestino": "",
         "tipoMovilidad": "",
-        "obs": _notaController.text.length > 1000
-            ? _notaController.text.substring(0, 1000)
-            : _notaController.text,
+        "obs": _notaController.text,
         "estado": "S", // Solo 1 carácter como requiere la BD
         "fecCre": DateTime.now().toIso8601String(),
         "useReg": UserService().currentUserCode, // Campo obligatorio
@@ -703,6 +710,9 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
       debugPrint('🆔 ID autogenerado obtenido: $idRend');
       debugPrint('📋 Preparando datos de evidencia con el ID generado...');
 
+      final driveId = await _apiService.subirArchivo(_selectedImage!.path);
+      debugPrint('ID de archivo en Drive: $driveId');
+
       // ✅ SEGUNDO API: Guardar evidencia/archivo usando el idRend del primer API
       final facturaDataEvidencia = {
         "idRend": idRend, // ✅ Usar el ID autogenerado del API principal
@@ -711,9 +721,7 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
             : (_selectedImage != null
                   ? base64Encode(_selectedImage!.readAsBytesSync())
                   : ""),
-        "obs": _notaController.text.length > 1000
-            ? _notaController.text.substring(0, 1000)
-            : _notaController.text,
+        "obs": driveId,
         "estado": "S", // Solo 1 carácter como requiere la BD
         "fecCre": DateTime.now().toIso8601String(),
         "useReg": UserService().currentUserCode, // Campo obligatorio
@@ -723,7 +731,10 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         "useElim": 0,
       };
 
-      // Usar el nuevo servicio API para guardar la evidencia
+      // Usar el nuevo servicio API para guardar la evide ncia
+
+
+     
       final successEvidencia = await _apiService.saveRendicionGastoEvidencia(
         facturaDataEvidencia,
       );
@@ -795,8 +806,8 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
                     _buildFacturaDataSection(),
                     const SizedBox(height: 20),
                     _buildNotesSection(),
-                    const SizedBox(height: 12),
-                    _buildRawDataSection(),
+                    //const SizedBox(height: 12),
+                    //_buildRawDataSection(),
                   ],
                 ),
               ),
@@ -1436,6 +1447,32 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
         ),
 
         // 🔍 Mensaje de validación del RUC Cliente
+        if (_rucClienteController.text.trim().isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
+            child: Row(
+              children: [
+                Icon(
+                  _isRucValid() ? Icons.check_circle : Icons.error,
+                  size: 16,
+                  color: _isRucValid() ? Colors.green : Colors.red,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _getRucStatusMessage(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _isRucValid() ? Colors.red : Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // 🔍 Mensaje de validación del RUC Cliente
         if (_rucClienteController.text.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
@@ -1460,6 +1497,8 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
               ],
             ),
           ),
+
+          
       ],
     );
   }
@@ -1471,6 +1510,114 @@ class _FacturaModalPeruState extends State<FacturaModalPeru> {
       'Nota',
       Icons.comment,
       TextInputType.text,
+    );
+  }
+
+  /// Construir la sección de notas
+  
+  
+  /// Construir la sección específica de movilidad
+  Widget _buildMovilidadSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.directions_car, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Text(
+                  'Detalles de Movilidad',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _origenController,
+                    decoration: const InputDecoration(
+                      labelText: 'Origen *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.my_location),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Origen es obligatorio';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _destinoController,
+                    decoration: const InputDecoration(
+                      labelText: 'Destino *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_on),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Destino es obligatorio';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _motivoViajeController,
+              decoration: const InputDecoration(
+                labelText: 'Motivo del Viaje *',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.description),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Motivo del Viaje es obligatorio';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _tipoTransporteController.text.isNotEmpty
+                  ? _tipoTransporteController.text
+                  : 'Taxi',
+              decoration: const InputDecoration(
+                labelText: 'Tipo de Transporte',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.directions_car),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Taxi', child: Text('Taxi')),
+                DropdownMenuItem(value: 'Uber', child: Text('Uber')),
+                DropdownMenuItem(value: 'Bus', child: Text('Bus')),
+                DropdownMenuItem(value: 'Metro', child: Text('Metro')),
+                DropdownMenuItem(value: 'Avión', child: Text('Avión')),
+                DropdownMenuItem(value: 'Otro', child: Text('Otro')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _tipoTransporteController.text = value ?? 'Taxi';
+                });
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 

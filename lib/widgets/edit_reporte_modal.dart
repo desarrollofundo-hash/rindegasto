@@ -1,14 +1,16 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+
 import '../models/reporte_model.dart';
 import '../models/categoria_model.dart';
 import '../models/dropdown_option.dart';
 import '../services/api_service.dart';
 import '../services/company_service.dart';
+import '../controllers/edit_reporte_controller.dart';
 import '../screens/home_screen.dart';
 
 class EditReporteModal extends StatefulWidget {
@@ -37,222 +39,80 @@ class _EditReporteModalState extends State<EditReporteModal> {
   late TextEditingController _rucClienteController;
   late TextEditingController _glosaController;
   late TextEditingController _obsController;
+  // Campos de movilidad
+  late TextEditingController _origenController;
+  late TextEditingController _destinoController;
+  late TextEditingController _motivoViajeController;
+  late TextEditingController _tipoMovilidadController;
+
+  // Campos adicionales usados en el formulario
   late TextEditingController _igvController;
   late TextEditingController _fechaEmisionController;
   late TextEditingController _notaController;
 
-  // Variables para manejo de imagen
-  File? _selectedImage;
-  File?
-  _selectedFile; // Archivo seleccionado (si se implementa selección de archivos)
-  File? _selectedFileType; // Tipo de archivo seleccionado (si se implementa)
-  File? _selectedFileName; // Nombre del archivo seleccionado (si se implementa)
-
-  String? _apiEvidencia; // URL de la evidencia que viene de la API
-  final ImagePicker _picker = ImagePicker();
-  final ApiService _apiService = ApiService();
-
+  // Estado
   bool _isLoading = false;
   bool _isEditMode = false;
+  bool _isFormValid = false;
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  // Servicios para cargar datos
+  // Servicios y controlador
+  final ApiService _apiService = ApiService();
+  late final EditReporteController _controller;
 
-  // Listas para dropdowns
-  List<DropdownOption> _politicas = [];
+  // Image / file picker
+  final ImagePicker _picker = ImagePicker();
+  File? _selectedImage;
+  String? _apiEvidencia;
+
   List<CategoriaModel> _categoriasGeneral = [];
   List<DropdownOption> _tiposGasto = [];
-
-  // Variables de estado para carga
-  bool _isLoadingPoliticas = false;
   bool _isLoadingCategorias = false;
   bool _isLoadingTiposGasto = false;
-
-  // Variables para errores
   String? _errorCategorias;
   String? _errorTiposGasto;
 
-  // Valores seleccionados para dropdowns
-  String? _selectedPolitica;
+  // Selecciones
 
-  // Variables para validación de campos obligatorios
-  bool _isFormValid = false;
+  // _selectedCategoria and _selectedTipoGasto were previously declared but
+  // not used after refactor. Keep controllers instead (_categoriaController,
+  // _tipoGastoController) to track values.
 
   @override
   void initState() {
     super.initState();
+    _controller = EditReporteController(apiService: _apiService);
     _initializeControllers();
     _initializeSelectedValues();
-    _initializeEvidencia();
     _loadPoliticas();
-    _loadCategorias(); // Carga todas las categorías inicialmente
+    // Cargar las categorías filtrando por la política del reporte para
+    // asegurarnos de que la categoría guardada esté disponible.
+    _loadCategorias(politicaFiltro: widget.reporte.politica);
     _loadTiposGasto();
+    // Añadir listeners para validar formulario en tiempo real
     _addValidationListeners();
   }
 
-  /// Inicializar la evidencia de la API
-  void _initializeEvidencia() {
-    print('🔍 Iniciando inicialización de evidencia...');
-    print('🔍 widget.reporte.evidencia: ${widget.reporte.evidencia}');
-
-    if (widget.reporte.evidencia != null) {
-      print('🔍 Evidencia no es null');
-
-      if (widget.reporte.evidencia!.isNotEmpty) {
-        final evidencia = widget.reporte.evidencia!.trim();
-        print('🔍 Evidencia después de trim: "$evidencia"');
-
-        // Simplificar validación temporalmente para debugging
-        if (evidencia.isNotEmpty) {
-          _apiEvidencia = evidencia;
-          print('✅ Evidencia asignada: $_apiEvidencia');
-        } else {
-          print('❌ Evidencia vacía después de trim');
-          _apiEvidencia = null;
-        }
-      } else {
-        print('❌ Evidencia está vacía');
-        _apiEvidencia = null;
-      }
-    } else {
-      print('❌ widget.reporte.evidencia es null');
-      _apiEvidencia = null;
-    }
-
-    print('🔍 Estado final _apiEvidencia: $_apiEvidencia');
-  }
-
-  /// Validar si una URL es válida
-  bool _isValidUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      return uri.isAbsolute &&
-          (uri.scheme == 'http' || uri.scheme == 'https') &&
-          uri.host.isNotEmpty;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Verificar si una string es base64 válido
-  bool _isBase64(String str) {
-    try {
-      print('🔍 Verificando si es base64...');
-      print('🔍 Longitud: ${str.length}');
-      print(
-        '🔍 Primeros 20 chars: ${str.substring(0, str.length > 20 ? 20 : str.length)}',
-      );
-
-      // Verificar longitud mínima
-      String cleanStr = str.trim();
-      if (cleanStr.length < 4) {
-        print('❌ Muy corto para ser base64');
-        return false;
-      }
-
-      // Verificar si se ve como base64 (contiene caracteres típicos)
-      bool looksLikeBase64 =
-          cleanStr.contains('data:image') ||
-          cleanStr.startsWith('/9j/') ||
-          cleanStr.startsWith('iVBOR') ||
-          cleanStr.startsWith('R0lGOD') ||
-          cleanStr.length > 100; // Imagen base64 típicamente es larga
-
-      print('🔍 Se ve como base64?: $looksLikeBase64');
-
-      if (looksLikeBase64) {
-        // Intentar decodificar
-        base64Decode(cleanStr);
-        print('✅ Decodificación exitosa - ES BASE64');
+  /// Determina si el reporte está en estado 'EN INFORME'.
+  /// Como `Reporte` no tiene un campo `estado`, comprobamos varios campos
+  /// que en el proyecto se usan en distintos contextos para representar el estado.
+  bool _isEnInforme() {
+    final candidates = [
+      widget.reporte.categoria,
+      widget.reporte.destino,
+      widget.reporte.tipogasto,
+      widget.reporte.obs,
+      widget.reporte.glosa,
+    ];
+    for (final v in candidates) {
+      if (v != null && v.trim().toUpperCase().contains('EN INFORME'))
         return true;
-      }
-
-      print('❌ No se ve como base64');
-      return false;
-    } catch (e) {
-      print('❌ Error al decodificar base64: $e');
-      return false;
     }
+    return false;
   }
 
-  /// Crear widget de imagen basado en el tipo de evidencia
-  Widget _buildEvidenciaImage(String evidencia) {
-    print('🖼️ Construyendo imagen de evidencia...');
-    print('🖼️ Longitud de evidencia: ${evidencia.length}');
-
-    if (_isBase64(evidencia)) {
-      print('✅ Detectado como BASE64 - usando Image.memory');
-      // Es base64, usar Image.memory
-      try {
-        final Uint8List bytes = base64Decode(evidencia);
-        print('✅ Decodificación exitosa, bytes: ${bytes.length}');
-        return Image.memory(
-          bytes,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            print('🔴 Error mostrando imagen desde bytes: $error');
-            return _buildErrorWidget('Error al mostrar imagen decodificada');
-          },
-        );
-      } catch (e) {
-        print('🔴 Error al decodificar base64 en buildImage: $e');
-        return _buildErrorWidget('Error al decodificar imagen base64');
-      }
-    } else if (_isValidUrl(evidencia)) {
-      print('✅ Detectado como URL - usando Image.network');
-      // Es URL, usar Image.network
-      return Image.network(
-        evidencia,
-        fit: BoxFit.cover,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return SizedBox(
-            height: 200,
-            child: Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            ),
-          );
-        },
-        errorBuilder: (context, error, stackTrace) {
-          print('🔴 Error cargando imagen de URL: $error');
-          return _buildErrorWidget('Error al cargar imagen desde URL');
-        },
-      );
-    } else {
-      // No es ni base64 ni URL válida
-      return _buildErrorWidget('Formato de evidencia no válido');
-    }
-  }
-
-  /// Widget de error para mostrar cuando hay problemas con la imagen
-  Widget _buildErrorWidget(String message) {
-    return SizedBox(
-      height: 200,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error, color: Colors.red, size: 40),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: const TextStyle(color: Colors.red),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Evidencia: ${_apiEvidencia?.substring(0, 50) ?? "N/A"}...',
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
+  // (El helper de error de imagen fue removido; la UI muestra placeholders simples)
 
   /// Agregar listeners para validación en tiempo real
   void _addValidationListeners() {
@@ -325,44 +185,14 @@ class _EditReporteModalState extends State<EditReporteModal> {
 
   void _initializeSelectedValues() {
     // Para política se validará después de cargar desde API
-    _selectedPolitica = widget.reporte.politica?.trim().isNotEmpty == true
-        ? widget.reporte.politica
-        : null;
-    print('🔍 Política inicial: ${widget.reporte.politica}');
-    print('🔍 Política seleccionada: $_selectedPolitica');
-
     // Para categoría y tipo de gasto, se validarán después de cargar desde API
     // Las variables se inicializan en los métodos correspondientes
   }
 
   /// Cargar políticas desde la API
   Future<void> _loadPoliticas() async {
+    // Placeholder to load políticas if needed. Currently no indicator is used.
     if (!mounted) return;
-    setState(() {
-      _isLoadingPoliticas = true;
-    });
-
-    try {
-      final politicas = await _apiService.getRendicionPoliticas();
-      print('🚀 Políticas cargadas: ${politicas.length}');
-      for (var pol in politicas) {
-        print('  - ${pol.value}');
-      }
-      if (!mounted) return;
-      setState(() {
-        _politicas = politicas;
-        _isLoadingPoliticas = false;
-        // No cambiar _selectedPolitica aquí, mantener el valor original para mostrarlo
-        print('🎯 Política seleccionada mantenida: $_selectedPolitica');
-      });
-    } catch (e) {
-      print('❌ Error cargando políticas: $e');
-      if (!mounted) return;
-      setState(() {
-        _isLoadingPoliticas = false;
-        // Mantener el valor original incluso si hay error
-      });
-    }
   }
 
   /// Cargar categorías desde la API
@@ -476,11 +306,25 @@ class _EditReporteModalState extends State<EditReporteModal> {
     _glosaController = TextEditingController(text: widget.reporte.glosa ?? '');
     _obsController = TextEditingController(text: widget.reporte.obs ?? '');
 
+    // Movilidad
+    _origenController = TextEditingController(
+      text: widget.reporte.lugarorigen ?? '',
+    );
+    _destinoController = TextEditingController(
+      text: widget.reporte.lugardestino ?? '',
+    );
+    _motivoViajeController = TextEditingController(
+      text: widget.reporte.motivoviaje ?? '',
+    );
+    _tipoMovilidadController = TextEditingController(
+      text: widget.reporte.tipomovilidad ?? '',
+    );
+
     // Nuevos controladores
     _igvController = TextEditingController(text: widget.reporte.serie ?? '');
-    _fechaEmisionController = TextEditingController(
-      text: widget.reporte.fecha ?? '',
-    );
+    // Mostrar fecha de emisión en formato ISO (yyyy-MM-dd) cuando sea posible
+    final formattedFecha = _formatToIsoDate(widget.reporte.fecha);
+    _fechaEmisionController = TextEditingController(text: formattedFecha);
     _notaController = TextEditingController(text: widget.reporte.obs ?? '');
   }
 
@@ -515,17 +359,16 @@ class _EditReporteModalState extends State<EditReporteModal> {
     _igvController.dispose();
     _fechaEmisionController.dispose();
     _notaController.dispose();
+    _origenController.dispose();
+    _destinoController.dispose();
+    _motivoViajeController.dispose();
+    _tipoMovilidadController.dispose();
 
-    _apiService.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  /// Convertir imagen a base64
-
-  Future<String> _convertImageToBase64(File imageFile) async {
-    final bytes = await imageFile.readAsBytes();
-    return base64Encode(bytes);
-  }
+  // Nota: conversión a base64 está en el controller (`_controller.convertImageToBase64`).
 
   /// Seleccionar imagen desde la cámara
   Future<void> _pickImage() async {
@@ -752,6 +595,49 @@ class _EditReporteModalState extends State<EditReporteModal> {
     }
   }
 
+  /// Intentar convertir varias representaciones de fecha a formato ISO (yyyy-MM-dd)
+  String _formatToIsoDate(String? input) {
+    if (input == null) return '';
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+
+    try {
+      // Si ya está en formato ISO aproximado (yyyy-MM-dd o yyyy/MM/dd), normalizar
+      final isoLike = RegExp(r'^(\d{4})[-/](\d{1,2})[-/](\d{1,2})');
+      final match = isoLike.firstMatch(trimmed);
+      if (match != null) {
+        final y = match.group(1)!;
+        final m = match.group(2)!.padLeft(2, '0');
+        final d = match.group(3)!.padLeft(2, '0');
+        return '$y-$m-$d';
+      }
+
+      // Intentar formatos comunes: dd/MM/yyyy, dd-MM-yyyy
+      final dmy = RegExp(r'^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})');
+      final matchDmy = dmy.firstMatch(trimmed);
+      if (matchDmy != null) {
+        final d = matchDmy.group(1)!.padLeft(2, '0');
+        final m = matchDmy.group(2)!.padLeft(2, '0');
+        final y = matchDmy.group(3)!;
+        return '$y-$m-$d';
+      }
+
+      // Intentar parsear con DateTime.parse como último recurso
+      final dt = DateTime.tryParse(trimmed);
+      if (dt != null) {
+        final y = dt.year.toString().padLeft(4, '0');
+        final m = dt.month.toString().padLeft(2, '0');
+        final d = dt.day.toString().padLeft(2, '0');
+        return '$y-$m-$d';
+      }
+    } catch (_) {
+      // ignore
+    }
+
+    // Si no se pudo parsear, devolver el original tal cual (o vacío si no se desea)
+    return trimmed;
+  }
+
   /// Verificar si un archivo es PDF basado en su extensión
   bool _isPdfFile(String filePath) {
     return filePath.toLowerCase().endsWith('.pdf');
@@ -923,16 +809,45 @@ class _EditReporteModalState extends State<EditReporteModal> {
     );
   }
 
+  /// Renderizar evidencia cuando llega en base64 o como URL
+  Widget _buildEvidenciaImage(String evidenciaBase64OrUrl) {
+    try {
+      // Si parece una URL válida, mostrar como imagen de red
+      if (_controller.isValidUrl(evidenciaBase64OrUrl)) {
+        return Image.network(
+          evidenciaBase64OrUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) {
+            return Center(child: Text('No se pudo cargar la imagen'));
+          },
+        );
+      }
+
+      // Si parece base64, decodificar y mostrar
+      if (_controller.isBase64(evidenciaBase64OrUrl)) {
+        final bytes = base64Decode(evidenciaBase64OrUrl);
+        return Image.memory(bytes, fit: BoxFit.cover);
+      }
+
+      // Si no es ninguno, mostrar placeholder
+      return Center(child: Text('Evidencia no disponible'));
+    } catch (e) {
+      return Center(child: Text('Evidencia inválida'));
+    }
+  }
+
   /// Construir la sección de categoría
   Widget _buildCategorySection() {
     // Determinar las categorías disponibles según la política
     List<DropdownMenuItem<String>> items = [];
+    // Valor seleccionado calculado de forma robusta (se determina más abajo)
+    String? selectedValue;
+    final savedCategoriaGlobal = _categoriaController.text.trim();
+    String normalizeGlobal(String s) => s.trim().toLowerCase();
 
-    if (_politicaController.text.toLowerCase().contains('movilidad')) {
-      // Para política de movilidad, mantener las opciones hardcodeadas
-      items = const [];
-    } else if (_politicaController.text.toLowerCase().contains('general')) {
-      // Para política GENERAL, usar datos de la API
+    if (_politicaController.text.toLowerCase().contains('movilidad') ||
+        _politicaController.text.toLowerCase().contains('general')) {
+      // Para políticas 'movilidad' y 'general', usar datos de la API
       if (_isLoadingCategorias) {
         return const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1000,6 +915,34 @@ class _EditReporteModalState extends State<EditReporteModal> {
           )
           .toList();
 
+      // Normalizar y determinar el valor seleccionado de forma robusta.
+      final savedCategoria = savedCategoriaGlobal;
+
+      // Buscar coincidencia insensible a mayúsculas/espacios en los items.
+      final match = items.firstWhere(
+        (it) =>
+            normalizeGlobal(it.value ?? '') == normalizeGlobal(savedCategoria),
+        orElse: () =>
+            DropdownMenuItem<String>(value: '', child: const SizedBox.shrink()),
+      );
+
+      if (savedCategoria.isNotEmpty) {
+        if (match.value != null && match.value!.isNotEmpty) {
+          // Usar el valor tal como viene en la lista (mantener capitalización API)
+          selectedValue = match.value;
+        } else {
+          // No se encontró en la lista: insertar fallback para que el usuario lo vea
+          items.insert(
+            0,
+            DropdownMenuItem<String>(
+              value: savedCategoria,
+              child: Text(_formatCategoriaName(savedCategoria) + ' (guardada)'),
+            ),
+          );
+          selectedValue = savedCategoria;
+        }
+      }
+
       // Si no hay categorías, mostrar mensaje
       if (items.isEmpty) {
         return Column(
@@ -1048,11 +991,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
           filled: true,
           fillColor: _isEditMode ? Colors.white : Colors.grey[100],
         ),
-        value:
-            _categoriaController.text.isNotEmpty &&
-                items.any((item) => item.value == _categoriaController.text)
-            ? _categoriaController.text
-            : null,
+        value: selectedValue,
         items: items,
         validator: (value) {
           if (value == null || value.isEmpty) {
@@ -1181,7 +1120,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
   }
 
   /// Construir la sección de datos raw
-  Widget _buildRawDataSection() {
+  /* Widget _buildRawDataSection() {
     return ExpansionTile(
       title: const Text('Datos Originales del Reporte'),
       leading: const Icon(Icons.receipt_long),
@@ -1208,7 +1147,7 @@ class _EditReporteModalState extends State<EditReporteModal> {
         ),
       ],
     );
-  }
+  } */
 
   /// Guardar factura mediante API
   Future<void> _updateFacturaAPI() async {
@@ -1224,188 +1163,33 @@ class _EditReporteModalState extends State<EditReporteModal> {
       return;
     }
 
-    // 🔍 VALIDACIÓN: RUC del cliente escaneado debe coincidir con empresa seleccionada
-    final rucClienteEscaneado = _rucClienteController.text.trim();
-    final rucEmpresaSeleccionada = CompanyService().companyRuc;
-
-    if (rucClienteEscaneado.isNotEmpty && rucEmpresaSeleccionada.isNotEmpty) {
-      if (rucClienteEscaneado != rucEmpresaSeleccionada) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '❌ RUC del cliente no coincide con la empresa seleccionada',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text('RUC cliente escaneado: $rucClienteEscaneado'),
-                Text('RUC empresa: $rucEmpresaSeleccionada'),
-                Text('Empresa: ${CompanyService().currentUserCompany}'),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 6),
-            action: SnackBarAction(
-              label: 'OK',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
-          ),
-        );
-        return;
-      }
-    }
-
+    setState(() => _isLoading = true);
     try {
-      if (mounted) setState(() => _isLoading = true);
-
-      // Formatear fecha para SQL Server (solo fecha, sin hora)
-      String fechaSQL = "";
-      if (_fechaEmisionController.text.isNotEmpty) {
-        try {
-          // Intentar parsear la fecha del QR
-          final fecha = DateTime.parse(_fechaEmisionController.text);
-          fechaSQL =
-              "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
-        } catch (e) {
-          // Si falla, usar fecha actual
-          final fecha = DateTime.now();
-          fechaSQL =
-              "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
-        }
-      } else {
-        final fecha = DateTime.now();
-        fechaSQL =
-            "${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}";
-      }
-
-      // 📋 DATOS PRINCIPALES DE LA FACTURA
-      // Este objeto contiene toda la información principal de la factura
-      // que será enviada al API que debe generar el idRend automáticamente
-      final facturaData = {
-        "idRend":
-            widget.reporte.idrend, // Siempre 0 para que el API genere uno nuevo
-        "idUser": widget.reporte.iduser,
-        "dni": widget.reporte.dni,
-        "politica": _politicaController.text.length > 80
-            ? _politicaController.text.substring(0, 80)
-            : _politicaController.text,
-        "categoria": _categoriaController.text.isEmpty
-            ? "GENERAL"
-            : (_categoriaController.text.length > 80
-                  ? _categoriaController.text.substring(0, 80)
-                  : _categoriaController.text),
-
-        "tipoGasto": _tipoGastoController.text.isEmpty
-            ? "GASTO GENERAL"
-            : (_tipoGastoController.text.length > 80
-                  ? _tipoGastoController.text.substring(0, 80)
-                  : _tipoGastoController.text),
-        "ruc": _rucController.text.isEmpty
-            ? ""
-            : (_rucController.text.length > 80
-                  ? _rucController.text.substring(0, 80)
-                  : _rucController.text),
-        "proveedor": "",
-        "tipoCombrobante": _tipoComprobanteController.text.isEmpty
-            ? ""
-            : (_tipoComprobanteController.text.length > 180
-                  ? _tipoComprobanteController.text.substring(0, 180)
-                  : _tipoComprobanteController.text),
-        "serie": _serieController.text.isEmpty
-            ? ""
-            : (_serieController.text.length > 80
-                  ? _serieController.text.substring(0, 80)
-                  : _serieController.text),
-        "numero": _numeroController.text.isEmpty
-            ? ""
-            : (_numeroController.text.length > 80
-                  ? _numeroController.text.substring(0, 80)
-                  : _numeroController.text),
-        "igv": double.tryParse(_igvController.text) ?? 0.0,
-        "fecha": fechaSQL,
-        "total": double.tryParse(_totalController.text) ?? 0.0,
-        "moneda": _monedaController.text.isEmpty
-            ? "PEN"
-            : (_monedaController.text.length > 80
-                  ? _monedaController.text.substring(0, 80)
-                  : _monedaController.text),
-        "rucCliente": _rucClienteController.text.isEmpty
-            ? ""
-            : (_rucClienteController.text.length > 80
-                  ? _rucClienteController.text.substring(0, 80)
-                  : _rucClienteController.text),
-        "desEmp": CompanyService().currentCompany?.empresa ?? '',
-        "desSed": "",
-        "idCuenta": "",
-        "consumidor": "",
-        "regimen": "",
-        "destino": "",
-        "glosa": "",
-        "motivoViaje": "",
-        "lugarOrigen": "",
-        "lugarDestino": "",
-        "tipoMovilidad": "",
-        "obs": _notaController.text.length > 1000
-            ? _notaController.text.substring(0, 1000)
-            : _notaController.text,
-        "estado": "S", // Solo 1 carácter como requiere la BD
-        "fecCre": DateTime.now().toIso8601String(),
-        "useReg": widget.reporte.iduser, // Campo obligatorio
-        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
-        "fecEdit": DateTime.now().toIso8601String(),
-        "useEdit": widget.reporte.iduser,
-        "useElim": 0,
-      };
-
-      // 🚨 IMPORTANTE: Si saverendiciongastoevidencia es el que GENERA el idRend,
-      // entonces necesitamos cambiar el orden de los APIs
-
-      // ✅ PRIMER API: Guardar datos principales de la factura (genera idRend automáticamente)
-      // Nota: Verificar cuál endpoint realmente genera el idRend autoincrementable
-      await _apiService.saveupdateRendicionGasto(facturaData);
-
-      //idRend del primer API
-      final evidenciaString = _selectedImage != null
-          ? await _convertImageToBase64(_selectedImage!)
-          : (_apiEvidencia ?? "");
-
-      print('📸 Enviando evidencia:');
-      print('📸 _selectedImage != null: ${_selectedImage != null}');
-      print('📸 _apiEvidencia: ${_apiEvidencia ?? "null"}');
-      print('📸 evidenciaString length: ${evidenciaString.length}');
-      print(
-        '📸 evidenciaString preview: ${evidenciaString.substring(0, evidenciaString.length > 50 ? 50 : evidenciaString.length)}...',
+      final success = await _controller.saveReporte(
+        reporte: widget.reporte,
+        politica: _politicaController.text,
+        categoria: _categoriaController.text,
+        tipoGasto: _tipoGastoController.text,
+        ruc: _rucController.text,
+        tipoComprobante: _tipoComprobanteController.text,
+        serie: _serieController.text,
+        numero: _numeroController.text,
+        igv: _igvController.text,
+        fechaEmision: _fechaEmisionController.text,
+        total: _totalController.text,
+        moneda: _monedaController.text,
+        rucCliente: _rucClienteController.text,
+        nota: _notaController.text,
+        // Movilidad
+        motivoViaje: _motivoViajeController.text,
+        lugarOrigen: _origenController.text,
+        lugarDestino: _destinoController.text,
+        tipoMovilidad: _tipoMovilidadController.text,
+        selectedImage: _selectedImage,
+        apiEvidencia: _apiEvidencia,
       );
 
-      final facturaDataEvidencia = {
-        "idRend": widget
-            .reporte
-            .idrend, // ✅ Usar el ID autogenerado del API principal
-        "evidencia": evidenciaString,
-        "obs": _notaController.text.length > 1000
-            ? _notaController.text.substring(0, 1000)
-            : _notaController.text,
-        "estado": "S", // Solo 1 carácter como requiere la BD
-        "fecCre": DateTime.now().toIso8601String(),
-        "useReg": widget.reporte.iduser, // Campo obligatorio
-        "hostname": "FLUTTER", // Campo obligatorio, máximo 50 caracteres
-        "fecEdit": DateTime.now().toIso8601String(),
-        "useEdit": widget.reporte.iduser,
-        "useElim": 0,
-      };
-
-      // Usar el nuevo servicio API para guardar la evidencia
-      final successEvidencia = await _apiService.saveRendicionGastoEvidencia(
-        facturaDataEvidencia,
-      );
-
-      print('📸 saveRendicionGastoEvidencia result: $successEvidencia');
-
-      if (successEvidencia && mounted) {
+      if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ FACTURA ACTUALIZADA'),
@@ -1414,47 +1198,30 @@ class _EditReporteModalState extends State<EditReporteModal> {
           ),
         );
 
-        // Cerrar el modal y navegar a la pantalla de gastos
-        Navigator.of(context).pop(); // Cerrar modal
-        Navigator.of(context).pop(); // Cerrar pantalla QR si existe
+        if (widget.onSave != null) widget.onSave!(widget.reporte);
 
-        // Navegar a HomeScreen con índice 0 (pestaña de Gastos)
+        // Cerrar modal
+        Navigator.of(context).pop();
+
+        // Cerrar pantalla QR si existe y navegar a HomeScreen para forzar refresco
+        try {
+          Navigator.of(context).pop();
+        } catch (_) {}
+
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false, // Remover todas las rutas anteriores
+          (route) => false,
         );
       }
     } catch (e) {
-      print('💥 Error capturado: $e');
-      if (mounted) {
-        // Extraer mensaje del servidor para mostrar en alerta
-        final serverMessage = _extractServerMessage(e.toString());
-        _showServerAlert(serverMessage);
-      }
+      final serverMessage = _extractServerMessage(e.toString());
+      _showServerAlert(serverMessage);
     } finally {
-      print('🔄 Finalizando proceso...');
-      if (mounted) {
-        if (mounted) setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showSuccessSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 12),
-            Text("Reporte actualizado correctamente"),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
+  // Removed unused success snackbar helper; success feedback is shown inline after save.
 
   @override
   Widget build(BuildContext context) {
@@ -1474,23 +1241,27 @@ class _EditReporteModalState extends State<EditReporteModal> {
             _buildHeader(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(15),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildImageSection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildPolicySection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildCategorySection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildTipoGastoSection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildInvoiceDataSection(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     _buildNotesSection(),
-                    const SizedBox(height: 20),
-                    _buildRawDataSection(),
+                    const SizedBox(height: 10),
+                    // Sección Movilidad (solo visible para políticas de movilidad)
+                    _buildMovilidadSection(),
+                    const SizedBox(height: 10),
+                    /*                     _buildRawDataSection(),
+ */
                   ],
                 ),
               ),
@@ -1538,13 +1309,10 @@ class _EditReporteModalState extends State<EditReporteModal> {
               ],
             ),
           ),
-          // Botón editar (solo icono)
-          if (!_isEditMode)
+          // Botón editar (solo icono) - ocultar si el reporte está en 'EN INFORME'
+          if (!_isEditMode && !_isEnInforme())
             IconButton(
               onPressed: () {
-                print('📝 Activando modo edición');
-                print('Políticas disponibles: ${_politicas.length}');
-                print('Política actual: $_selectedPolitica');
                 setState(() {
                   _isEditMode = true;
                 });
@@ -1709,338 +1477,6 @@ class _EditReporteModalState extends State<EditReporteModal> {
     );
   }
 
-  /// Dropdown específico para políticas
-  Widget _buildDropdownFieldPoliticas({
-    required String label,
-    required String? value,
-    required ValueChanged<String?>? onChanged,
-    required String hint,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: _isEditMode ? Colors.white : Colors.grey[100],
-            border: Border.all(color: Colors.grey[300]!, width: 1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: _isEditMode
-              ? (_isLoadingPoliticas
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            SizedBox(width: 8),
-                            Text("Cargando políticas..."),
-                          ],
-                        ),
-                      )
-                    : _politicas.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          "No hay políticas disponibles",
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      )
-                    : DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value:
-                              (value != null &&
-                                  _politicas.any((pol) => pol.value == value))
-                              ? value
-                              : null,
-                          isExpanded: true,
-                          hint: Text(
-                            hint,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 14,
-                            ),
-                          ),
-                          items: _politicas.map((DropdownOption politica) {
-                            return DropdownMenuItem<String>(
-                              value: politica.value,
-                              child: Text(
-                                politica.value,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (String? newValue) {
-                            setState(() {
-                              _selectedPolitica = newValue;
-                            });
-                            onChanged?.call(newValue);
-
-                            // Recargar categorías cuando cambie la política
-                            if (newValue != null) {
-                              _loadCategorias(politicaFiltro: newValue);
-                              // Limpiar categoría seleccionada al cambiar política
-                              setState(() {
-                                // Variable eliminada
-                              });
-                            }
-                          },
-                        ),
-                      ))
-              : Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    value ?? hint,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: value != null
-                          ? Colors.grey[600]
-                          : Colors.grey[400],
-                    ),
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-
-  /// Dropdown específico para categorías
-  Widget _buildDropdownFieldCategorias({
-    required String label,
-    required String? value,
-    required ValueChanged<String?>? onChanged,
-    required String hint,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: _isEditMode ? Colors.white : Colors.grey[100],
-            border: Border.all(color: Colors.grey[300]!, width: 1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: _isEditMode
-              ? _isLoadingCategorias
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            SizedBox(width: 8),
-                            Text("Cargando categorías..."),
-                          ],
-                        ),
-                      )
-                    : DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value:
-                              _isEditMode &&
-                                  _categoriasGeneral.any(
-                                    (cat) => cat.categoria == value,
-                                  )
-                              ? value
-                              : null, // Solo validar en modo edición
-                          isExpanded: true,
-                          hint: Text(
-                            hint,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 14,
-                            ),
-                          ),
-                          items: _categoriasGeneral.map((
-                            CategoriaModel categoria,
-                          ) {
-                            return DropdownMenuItem<String>(
-                              value: categoria.categoria,
-                              child: Text(
-                                categoria.categoria,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: onChanged,
-                        ),
-                      )
-              : Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    value ?? hint,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: value != null
-                          ? Colors.grey[600]
-                          : Colors.grey[400],
-                    ),
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-
-  /// Dropdown específico para tipos de gasto
-  Widget _buildDropdownFieldTiposGasto({
-    required String label,
-    required String? value,
-    required ValueChanged<String?>? onChanged,
-    required String hint,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: _isEditMode ? Colors.white : Colors.grey[100],
-            border: Border.all(color: Colors.grey[300]!, width: 1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: _isEditMode
-              ? (_isLoadingTiposGasto
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            SizedBox(width: 8),
-                            Text("Cargando tipos de gasto..."),
-                          ],
-                        ),
-                      )
-                    : DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value:
-                              _isEditMode &&
-                                  _tiposGasto.any((tipo) => tipo.value == value)
-                              ? value
-                              : null, // Solo validar en modo edición
-                          isExpanded: true,
-                          hint: Text(
-                            hint,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 14,
-                            ),
-                          ),
-                          items: _tiposGasto.map((DropdownOption tipo) {
-                            return DropdownMenuItem<String>(
-                              value: tipo.value,
-                              child: Text(
-                                tipo.value,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: onChanged,
-                        ),
-                      ))
-              : Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    value ?? hint,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: value != null
-                          ? Colors.grey[600]
-                          : Colors.grey[400],
-                    ),
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-
-  /// Sección de datos de empresa
-  Widget _buildCompanyDataSection() {
-    return _buildSection(
-      title: 'Datos de la Empresa',
-      icon: Icons.business_outlined,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                _rucController,
-                "RUC Empresa",
-                Icons.business,
-                TextInputType.text,
-                isRequired: true,
-                readOnly: true,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildTextField(
-                _rucClienteController,
-                "RUC Cliente",
-                Icons.person,
-                TextInputType.text,
-                readOnly: true,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          _proveedorController,
-          "Proveedor",
-          Icons.store,
-          TextInputType.text,
-          isRequired: true,
-        ),
-      ],
-    );
-  }
-
   /// Sección de notas
   Widget _buildNotesSection() {
     return _buildTextField(
@@ -2051,41 +1487,97 @@ class _EditReporteModalState extends State<EditReporteModal> {
     );
   }
 
-  /// Constructor de sección genérica
-  Widget _buildSection({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
+  /// Construir la sección específica de Movilidad (origen, destino, motivo, tipo transporte)
+  Widget _buildMovilidadSection() {
+    final politica = _politicaController.text.toLowerCase();
+    if (!politica.contains('movilidad')) return const SizedBox.shrink();
+
+    return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 20, color: Colors.red[600]),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[800],
+        padding: const EdgeInsets.all(12),
+        child: AbsorbPointer(
+          absorbing: !_isEditMode,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.directions_car, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Detalles de Movilidad',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
+                  const Spacer(),
+                  // Mostrar indicador de solo lectura cuando NO está en modo edición
+                  if (!_isEditMode)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: const Text(
+                        'Solo lectura',
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _origenController,
+                readOnly: !_isEditMode,
+                decoration: InputDecoration(
+                  labelText: 'Lugar Origen',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.place),
+                  filled: true,
+                  fillColor: _isEditMode ? Colors.white : Colors.grey[100],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _destinoController,
+                readOnly: !_isEditMode,
+                decoration: InputDecoration(
+                  labelText: 'Lugar Destino',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.flag),
+                  filled: true,
+                  fillColor: _isEditMode ? Colors.white : Colors.grey[100],
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _motivoViajeController,
+                readOnly: !_isEditMode,
+                decoration: InputDecoration(
+                  labelText: 'Motivo de Viaje',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.event_note),
+                  filled: true,
+                  fillColor: _isEditMode ? Colors.white : Colors.grey[100],
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _tipoMovilidadController,
+                readOnly: !_isEditMode,
+                decoration: InputDecoration(
+                  labelText: 'Tipo Transporte',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.directions_transit),
+                  filled: true,
+                  fillColor: _isEditMode ? Colors.white : Colors.grey[100],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

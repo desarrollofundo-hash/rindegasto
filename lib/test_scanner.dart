@@ -1,5 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'screens/document_scanner_screen.dart';
+import 'package:image_picker/image_picker.dart';
 
 class TestDocumentScannerApp extends StatelessWidget {
   const TestDocumentScannerApp({super.key});
@@ -13,23 +15,31 @@ class TestDocumentScannerApp extends StatelessWidget {
         body: Center(
           child: ElevatedButton(
             onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DocumentScannerScreen(),
-                ),
-              );
-
-              if (result != null) {
+              try {
+                final picker = ImagePicker();
+                final xfile = await picker.pickImage(
+                  source: ImageSource.camera,
+                  imageQuality: 85,
+                );
+                if (xfile != null) {
+                  final file = File(xfile.path);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Resultado: ${file.path}'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Resultado: $result'),
-                    backgroundColor: Colors.green,
+                    content: Text('Error capturando imagen: $e'),
+                    backgroundColor: Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('Abrir Escáner de Documentos'),
+            child: const Text('Capturar documento (camera)'),
           ),
         ),
       ),

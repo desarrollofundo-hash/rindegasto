@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/user_service.dart';
 import '../services/company_service.dart';
 import '../widgets/company_selection_modal.dart';
@@ -18,6 +19,9 @@ class ProfileModalController with ChangeNotifier {
   double _avatarScale = 1.0;
   bool _isDragging = false;
   double _totalDragOffset = 0.0;
+  // Animación de la mano (wave)
+  late AnimationController _handController;
+  late Animation<double> _handAnimation;
 
   // Getters
   AnimationController get animationController => _animationController;
@@ -27,6 +31,12 @@ class ProfileModalController with ChangeNotifier {
   double get avatarScale => _avatarScale;
   bool get isDragging => _isDragging;
   double get totalDragOffset => _totalDragOffset;
+
+  get onDragStart => null;
+
+  get onDragUpdate => null;
+
+  get onDragEnd => null;
 
   void initializeAnimations(TickerProvider vsync) {
     _animationController = AnimationController(
@@ -56,11 +66,36 @@ class ProfileModalController with ChangeNotifier {
           ),
         );
 
+    // Inicializar animación de la mano (oscilación pequeña)
+    _handController = AnimationController(
+      duration: const Duration(milliseconds: 900),
+      vsync: vsync,
+    );
+
+    _handAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.0,
+          end: 0.35,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.35,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+    ]).animate(_handController);
+
     _setupFocusAnimations();
   }
 
   void startAnimation() {
     _animationController.forward();
+    // Iniciar animación de la mano en loop
+    _handController.repeat(reverse: true);
   }
 
   void _setupFocusAnimations() {
@@ -79,7 +114,15 @@ class ProfileModalController with ChangeNotifier {
   Future<void> closeModal(BuildContext context) async {
     await _animationController.reverse();
     if (context.mounted) {
-      Navigator.pop(context);
+      // Usar safePop para asegurar que se quite foco/teclado antes de cerrar
+      try {
+        // import local evita ciclo; se usa mediante ruta relativa
+        // mover a util
+        FocusManager.instance.primaryFocus?.unfocus();
+        SystemChannels.textInput.invokeMethod('TextInput.hide');
+      } catch (_) {}
+
+      if (Navigator.of(context).canPop()) Navigator.of(context).pop();
     }
   }
 
@@ -194,6 +237,9 @@ class ProfileModalController with ChangeNotifier {
     final userId = int.tryParse(userService.currentUserCode) ?? 0;
     final userName = userService.currentUserName;
 
+    // Quitar foco de cualquier TextField antes de abrir el modal
+    FocusScope.of(context).unfocus();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -209,9 +255,15 @@ class ProfileModalController with ChangeNotifier {
 
   void dispose() {
     _animationController.dispose();
+    _handController.dispose();
     for (var node in focusNodes) {
       node.dispose();
     }
     super.dispose();
   }
+
+  // Exponer la animación de la mano para usar en widgets
+  Animation<double> get handAnimation => _handAnimation;
+
+  void setAvatarScale(double d) {}
 }

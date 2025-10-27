@@ -33,7 +33,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
   }
 
   Future<void> _loadPoliticas() async {
-    print('🚀 Cargando políticas desde API de categorías...');
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -46,7 +45,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
       final categorias = await _apiService.getRendicionCategorias(
         politica: 'todos',
       );
-      print('✅ Categorías obtenidas: ${categorias.length}');
 
       // Extraer políticas únicas
       final Map<String, DropdownOption> politicasMap = {};
@@ -67,11 +65,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
       }
 
       final politicasUnicas = politicasMap.values.toList();
-      print('✅ Políticas únicas extraídas: ${politicasUnicas.length}');
-      for (var politica in politicasUnicas) {
-        print('  - ${politica.value} (ID: ${politica.id})');
-      }
-
       if (mounted) {
         setState(() {
           _politicas = politicasUnicas;
@@ -79,7 +72,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
         });
       }
     } catch (e) {
-      print('❌ Error cargando políticas: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();
@@ -112,7 +104,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
             },
             onSave: (gastoData) {
               Navigator.pop(context);
-              print('🚗 Gasto de movilidad guardado: $gastoData');
               widget.onPoliticaSelected(_selectedPolitica!);
             },
           ),
@@ -130,7 +121,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
             },
             onSave: (gastoData) {
               Navigator.pop(context);
-              print('💼 Gasto general guardado: $gastoData');
               widget.onPoliticaSelected(_selectedPolitica!);
             },
           ),
@@ -151,9 +141,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
         children: [
           // Handle del modal
           Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
             decoration: BoxDecoration(
               color: Colors.grey[300],
               borderRadius: BorderRadius.circular(2),
@@ -162,7 +149,7 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
 
           // Header
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Colors.indigo.shade700, Colors.indigo.shade400],
@@ -174,7 +161,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.policy, color: Colors.white, size: 28),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Column(
@@ -206,7 +192,7 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
           // Contenido
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(10),
               child: _buildContent(),
             ),
           ),
@@ -214,10 +200,10 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
           // Botones
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
+            /* decoration: BoxDecoration(
               color: Colors.grey.shade50,
               border: Border(top: BorderSide(color: Colors.grey.shade300)),
-            ),
+            ), */
             child: Row(
               children: [
                 Expanded(
@@ -240,6 +226,7 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
               ],
             ),
           ),
+          const SizedBox(height: 30),
         ],
       ),
     );
@@ -375,82 +362,6 @@ class _PoliticaTestModalState extends State<PoliticaTestModal> {
             }
           },
         ),
-
-        const SizedBox(height: 16),
-
-        // Información sobre políticas disponibles
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.shade200),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.blue.shade600, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Se extrajeron ${_politicas.length} política${_politicas.length != 1 ? 's' : ''} única${_politicas.length != 1 ? 's' : ''} de la API de categorías',
-                  style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Info selección
-        if (_selectedPolitica != null) ...[
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.indigo.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.indigo.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      color: Colors.indigo.shade600,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Política seleccionada:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _selectedPolitica!.value,
-                  style: TextStyle(
-                    color: Colors.indigo.shade700,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 16,
-                  ),
-                ),
-                if (_selectedPolitica!.metadata != null)
-                  Text(
-                    'ID: ${_selectedPolitica!.id}',
-                    style: TextStyle(
-                      color: Colors.indigo.shade600,
-                      fontSize: 12,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }

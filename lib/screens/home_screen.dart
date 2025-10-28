@@ -59,11 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-<<<<<<< HEAD
-    _loadReportes();
-    _loadInformes();
-    _loadAuditorias();
-=======
     // Sólo cargar datos si hay usuario y empresa seleccionada. Evita
     // peticiones con parámetros vacíos (que pueden causar 400 Bad Request)
     if (UserService().isLoggedIn && CompanyService().isLoggedIn) {
@@ -77,7 +72,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Insertar el FAB en overlay según el índice actual después del primer frame
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateFabOverlay());
->>>>>>> 7c73e73c1453c44b7c3553a90b48f0a3b70b58f9
   }
 
   @override
